@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERREUR {{ code }} | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- On simule React/Zustand avec une logique Vanilla JS robuste et un state global -->
+    <style>
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #error-root {
+            text-align: center;
+            z-index: 10;
+            padding: 40px;
+            background: rgba(10, 10, 12, 0.8);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            max-width: 600px;
+            width: 90%;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        h1 {
+            font-size: 8rem;
+            margin: 0;
+            color: var(--accent);
+            text-shadow: 0 0 20px var(--accent);
+        }
+        .joke {
+            font-size: 1.2rem;
+            margin: 20px 0;
+            min-height: 3em;
+            color: var(--text-secondary);
+        }
+        .actions {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        .btn {
+            padding: 12px 24px;
+            text-decoration: none;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #bg-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    
+    <div id="error-root">
+        <h1 id="error-code">{{ code }}</h1>
+        <p class="joke" id="error-joke">{{ variant_title }} — {{ variant_message }}</p>
+        <div class="actions">
+            <a href="/" class="btn btn-primary" id="btn-home">RETOUR AU SYSTÈME</a>
+            <a href="#" class="btn btn-secondary" id="btn-report">SIGNALER L'ANOMALIE</a>
+        </div>
+    </div>
+
+    <script>
+        // Animation de fond (Matrix/Glitch style)
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let columns = Math.floor(canvas.width / 20);
+        let drops = new Array(columns).fill(1); // style 4xx (par défaut)
+
+        const CODE = parseInt('{{ code }}', 10) || 0;
+        const CLASS = Math.floor(CODE / 100);
+
+        let state = {};
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            columns = Math.floor(canvas.width / 20);
+            drops = new Array(columns).fill(1);
+            // réinit états pour autres classes
+            if (CLASS === 1) initBubbles();
+            if (CLASS === 2) initConfetti();
+            if (CLASS === 3) initArrows();
+        }
+        window.addEventListener('resize', resize);
+
+        // 1xx: bulles montantes (bleu)
+        function initBubbles() {
+            const count = Math.min(120, Math.floor(canvas.width / 10));
+            state.bubbles = Array.from({ length: count }, () => ({
+                x: Math.random() * canvas.width,
+                y: canvas.height + Math.random() * canvas.height,
+                r: 1 + Math.random() * 2,
+                vy: 0.5 + Math.random() * 1.2,
+                alpha: 0.2 + Math.random() * 0.4
+            }));
+        }
+        function renderBubbles() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            for (const b of state.bubbles) {
+                ctx.beginPath();
+                ctx.fillStyle = `rgba(0,191,255,${b.alpha})`;
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+                b.y -= b.vy;
+                b.x += Math.sin(b.y * 0.01) * 0.3;
+                if (b.y < -10) {
+                    b.y = canvas.height + 10;
+                    b.x = Math.random() * canvas.width;
+                }
+            }
+        }
+
+        // 2xx: confettis (vert/jaune)
+        function initConfetti() {
+            const count = Math.min(140, Math.floor(canvas.width / 8));
+            state.confetti = Array.from({ length: count }, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * -canvas.height,
+                w: 2 + Math.random() * 3,
+                h: 6 + Math.random() * 8,
+                vy: 1 + Math.random() * 2.2,
+                vx: -0.5 + Math.random(),
+                hue: Math.random() < 0.5 ? 90 : 60 // vert/jaune
+            }));
+        }
+        function renderConfetti() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.06)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            for (const p of state.confetti) {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate((p.y + p.x) * 0.01);
+                ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, 0.6)`;
+                ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+                ctx.restore();
+                p.y += p.vy;
+                p.x += p.vx;
+                if (p.y > canvas.height + 10) {
+                    p.y = -10; p.x = Math.random() * canvas.width;
+                }
+                if (p.x < -10) p.x = canvas.width + 10;
+                if (p.x > canvas.width + 10) p.x = -10;
+            }
+        }
+
+        // 3xx: flèches horizontales
+        function initArrows() {
+            const rows = Math.floor(canvas.height / 24);
+            state.arrows = Array.from({ length: rows }, (_, i) => ({
+                y: 12 + i * 24,
+                x: Math.random() * canvas.width,
+                speed: 0.6 + Math.random() * 1.2,
+                char: Math.random() < 0.5 ? '→' : '↷'
+            }));
+        }
+        function renderArrows() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '18px monospace';
+            ctx.fillStyle = '#a0a0ff55';
+            for (const a of state.arrows) {
+                ctx.fillText(a.char, a.x, a.y);
+                a.x += a.speed;
+                if (a.x > canvas.width + 20) a.x = -20;
+            }
+        }
+
+        // 4xx: matrix (existant)
+        function renderMatrix() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ccff0033';
+            ctx.font = '15px monospace';
+            for (let i = 0; i < drops.length; i++) {
+                const text = String.fromCharCode(Math.random() * 128);
+                ctx.fillText(text, i * 20, drops[i] * 20);
+                if (drops[i] * 20 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+
+        // 5xx: glitch/stripes
+        function renderGlitch() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.12)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // lignes verticales rouges
+            for (let i = 0; i < 10; i++) {
+                const x = Math.random() * canvas.width;
+                ctx.fillStyle = 'rgba(255, 60, 60, 0.08)';
+                ctx.fillRect(x, 0, 2 + Math.random() * 3, canvas.height);
+            }
+            // blocs glitch
+            for (let i = 0; i < 6; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const w = 40 + Math.random() * 120;
+                const h = 6 + Math.random() * 18;
+                ctx.fillStyle = 'rgba(255, 60, 60, 0.12)';
+                ctx.fillRect(x, y, w, h);
+            }
+        }
+
+        // Sélection du renderer selon la classe
+        let render = renderMatrix;
+        if (CLASS === 1) { initBubbles(); render = renderBubbles; }
+        else if (CLASS === 2) { initConfetti(); render = renderConfetti; }
+        else if (CLASS === 3) { initArrows(); render = renderArrows; }
+        else if (CLASS === 4) { render = renderMatrix; } // inchangé
+        else if (CLASS === 5) { render = renderGlitch; }
+
+        setInterval(render, 33);
+
+        // Effet machine à écrire + son
+        (function() {
+            const el = document.getElementById('error-joke');
+            const full = el.textContent.trim();
+            el.textContent = '';
+
+            // Son: WebAudio (sans fichier)
+            const Audio = {
+                ctx: null,
+                enabled: true,
+                init() {
+                    if (!this.ctx) {
+                        try {
+                            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        } catch (_) {
+                            this.enabled = false;
+                        }
+                    }
+                },
+                tick() {
+                    if (!this.enabled || !this.ctx) return;
+                    const ctx = this.ctx;
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'square';
+                    o.frequency.value = 700 + Math.random() * 120;
+                    g.gain.value = 0.03;
+                    o.connect(g); g.connect(ctx.destination);
+                    const now = ctx.currentTime;
+                    o.start(now);
+                    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+                    o.stop(now + 0.065);
+                }
+            };
+
+            // Activation initiale (peut nécessiter un geste utilisateur)
+            Audio.init();
+            window.addEventListener('pointerdown', () => Audio.init(), { once: true, passive: true });
+
+            // Style curseur clignotant via CSS inline pour isoler
+            const style = document.createElement('style');
+            style.textContent = `
+                #error-joke {
+                    position: relative;
+                    white-space: pre-wrap;
+                    letter-spacing: .2px;
+                }
+                #error-joke::after{
+                    content:'';
+                    display:inline-block;
+                    width:10px;height:1.2em;
+                    margin-left:4px;
+                    background: var(--accent);
+                    opacity:.8;
+                    animation: blink 0.9s steps(1,end) infinite;
+                    vertical-align: -0.2em;
+                }
+                @keyframes blink { 50% { opacity: 0; } }
+            `;
+            document.head.appendChild(style);
+
+            function typewriter(text, target, opts = {}) {
+                const min = opts.min || 28;
+                const max = opts.max || 55;
+                let i = 0;
+                function step() {
+                    const ch = text[i++];
+                    target.textContent += ch;
+                    if (/[^\s]/.test(ch)) Audio.tick();
+                    if (i < text.length) {
+                        const base = min + Math.random() * (max - min);
+                        const delay = /[.,;:!?]/.test(ch) ? base * 4 : base;
+                        setTimeout(step, delay);
+                    } else {
+                        // Fin: garde le curseur, pas de son
+                    }
+                }
+                step();
+            }
+
+            // Démarre l'animation
+            setTimeout(() => typewriter(full, el, { min: 28, max: 55 }), 250);
+        })();
+    </script>
+</body>
+</html>

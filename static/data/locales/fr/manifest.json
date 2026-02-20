@@ -1,0 +1,12 @@
+{
+  "lang": "fr",
+  "packs": [
+    { "file": "packs/pack_001.json" }
+  ],
+  "total_lines": 10,
+  "universe": {
+    "name": "Kronos - Marches Ombreuses",
+    "era": "fantaisie sombre, pré‑industrielle",
+    "register": "oral, vif, images concrètes, touches d'ironie"
+  }
+}

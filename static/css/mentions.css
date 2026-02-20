@@ -1,0 +1,84 @@
+
+/* Animation Mention Flash */
+@keyframes mentionFlashAnim {
+    0% { 
+        background-color: var(--accent); 
+        color: #000; 
+        box-shadow: 0 0 20px var(--accent-glow);
+        transform: scale(1.05);
+    }
+    10% {
+        transform: scale(1);
+    }
+    100% { 
+        background-color: rgba(204, 255, 0, 0.1); 
+        color: var(--accent); 
+        box-shadow: none; 
+    }
+}
+
+.mention.mention-flash {
+    animation: mentionFlashAnim 2.4s cubic-bezier(0.25, 1, 0.5, 1);
+    border-radius: 4px;
+    padding: 0 4px;
+    display: inline-block; /* Pour que transform fonctionne */
+}
+
+/* Liste des mentions (Autocomplete) */
+#mention-list {
+    position: absolute;
+    bottom: 100%; /* Au-dessus de l'input */
+    left: 20px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+    width: 250px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none; /* Masqué par défaut */
+    flex-direction: column;
+    padding: 4px 0;
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    gap: 10px;
+}
+
+.mention-item:hover, .mention-item.active {
+    background-color: var(--bg-hover);
+}
+
+.mention-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border);
+}
+
+.mention-username {
+    font-size: 0.9em;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Scrollbar personnalisée pour la liste */
+#mention-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+#mention-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#mention-list::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 3px;
+}

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCHIVES DE FICHIERS | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        :root {
+            --file-card-bg: rgba(25, 25, 25, 0.7);
+            --file-card-hover: rgba(35, 35, 35, 0.9);
+            --accent-dim: rgba(204, 255, 0, 0.1);
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-image: linear-gradient(rgba(204, 255, 0, 0.02) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(204, 255, 0, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            flex-direction: column; /* Changement pour barre de recherche en haut */
+        }
+        
+        /* Sidebar à droite */
+        .sidebar {
+            width: 320px;
+            background: rgba(15, 15, 15, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border); /* Bordure à gauche */
+            display: flex;
+            flex-direction: column;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            position: relative;
+        }
+        
+        /* Poignée de redimensionnement à gauche de la sidebar */
+        .sidebar-resizer {
+            position: absolute;
+            left: -5px;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            cursor: col-resize;
+            z-index: 101;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            transform: translateX(320px); /* Cache vers la droite */
+        }
+
+        .sidebar-content {
+            padding: 40px 25px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        /* Top Bar Fixe en haut */
+        .top-bar {
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            padding: 15px 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            z-index: 110;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        /* Proportions précises: recherche dominante, filtres/retour compacts */
+        .top-bar > .search-wrapper { flex: 1 1 900px; min-width: 420px; }
+        .top-bar > .btn-icon { flex: 0 0 auto; }
+        .top-bar > a.btn-secondary { flex: 0 0 auto; white-space: nowrap; }
+        @media (max-width: 1100px) {
+            .top-bar > .search-wrapper { min-width: 300px; }
+        }
+        @media (max-width: 800px) {
+            .top-bar > .search-wrapper { min-width: 200px; }
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Scroll local dans scroll-area */
+            position: relative;
+        }
+
+        /* Ajustements scrollbar */
+        .main-content::-webkit-scrollbar, .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .main-content::-webkit-scrollbar-thumb, .sidebar-content::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 3px;
+        }
+
+        .search-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        .search-wrapper input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 15px 25px 15px 50px;
+            font-size: 1.1rem;
+            font-family: var(--font-ui);
+            transition: all 0.3s;
+        }
+        .search-wrapper input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.07);
+            box-shadow: 0 0 20px var(--accent-dim);
+        }
+        .search-icon {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--accent);
+            opacity: 0.5;
+        }
+
+        /* Grid */
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            scroll-behavior: smooth;
+        }
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Lazy Loading Spinner */
+        .lazy-spinner {
+            grid-column: 1/-1;
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(204, 255, 0, 0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Mobile Fixes */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                height: 100%;
+                left: 0;
+                top: 0;
+            }
+            .top-bar {
+                padding: 10px 20px;
+            }
+            .files-grid {
+                padding: 20px;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Filtres Avancés */
+        .sidebar-section {
+            margin-bottom: 35px;
+        }
+        
+        .advanced-select, .date-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        .multi-select-uploader {
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .uploader-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .uploader-option:hover {
+            color: var(--accent);
+        }
+
+        .size-filter-range {
+            padding: 10px 0;
+        }
+
+        .size-filter-range input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .admin-btn-danger {
+            width: 100%;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .admin-btn-danger:hover {
+            background: #ff4444;
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+        }
+
+        /* Upload Progress Bars */
+        .attachment-progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.2s;
+        }
+        .upload-failed {
+            border-color: #ff4444 !important;
+            opacity: 0.8;
+        }
+        .upload-retry-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.7rem;
+            color: #ff4444;
+            white-space: nowrap;
+        }
+
+        .file-card {
+            background: var(--file-card-bg);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        .file-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent);
+            background: var(--file-card-hover);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        }
+
+        .file-preview {
+            height: 200px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+        .file-preview img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            transition: transform 0.5s;
+        }
+        .file-card:hover .file-preview img {
+            transform: scale(1.1);
+        }
+        
+        .file-type-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 10px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        .file-info { padding: 25px; }
+        
+        .file-name { 
+            font-weight: 900; 
+            font-size: 1.1rem; 
+            margin-bottom: 20px; 
+            display: block; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+        }
+
+        .file-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .meta-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .meta-value {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: bold;
+        }
+
+        .btn-download {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            text-decoration: none;
+            padding: 12px;
+            font-weight: 900;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .btn-download:hover {
+            filter: brightness(1.1);
+            gap: 15px;
+        }
+
+        /* Toggle Sidebar Button */
+        .btn-icon {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-icon:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Filters */
+        .filter-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .filter-item {
+            padding: 12px 15px;
+            border: 1px solid transparent;
+            margin-bottom: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .filter-item:hover {
+            background: rgba(255,255,255,0.03);
+            border-color: var(--border);
+        }
+        .filter-item.active {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+        .filter-count {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            background: var(--bg-surface);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+            opacity: 0;
+        }
+
+        @media (max-width: 1000px) {
+            .sidebar { position: absolute; height: 100%; box-shadow: 20px 0 50px rgba(0,0,0,0.8); }
+            .sidebar.collapsed { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="search-wrapper" style="flex: 1 1 auto; min-width: 0;">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" placeholder="RECHERCHER DANS LES ARCHIVES..." id="file-search" style="width:100%;">
+        </div>
+
+        <button class="btn-icon" id="toggle-sidebar" title="Filtres avancés" style="flex:0 0 auto; padding-left: 16px; padding-right: 16px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-8h6m2 10h6"/></svg>
+        </button>
+        
+        <a href="/" class="btn-secondary" style="flex:0 0 auto; width:auto !important; padding: 12px 8px; text-decoration: none; white-space: nowrap;">RETOUR</a>
+    </div>
+
+    <div class="content-wrapper">
+        <main class="main-content">
+            <div class="scroll-area">
+                <div class="files-grid">
+                {% for file in files %}
+                    <div class="file-card fade-in" 
+                         style="animation-delay: {{ loop.index0 * 0.05 }}s;" 
+                         data-file-type="{{ file.file_type }}" 
+                         data-filename="{{ file.original_filename|lower }}"
+                         data-uploader-id="{{ file.uploader_id }}"
+                         data-size="{{ file.file_size }}"
+                         data-date="{{ file.created_at.isoformat() }}">
+                        <div class="file-preview">
+                            <div class="file-type-overlay">{{ file.file_type.split('/')[-1] | upper }}</div>
+                            {% if file.file_type.startswith('image/') %}
+                                <img src="/static/uploads/{{ file.filename }}" alt="{{ file.original_filename }}">
+                            {% else %}
+                                <div style="font-size: 5rem; opacity: 0.2; filter: grayscale(1);">📁</div>
+                            {% endif %}
+                        </div>
+                        <div class="file-info">
+                            <span class="file-name" title="{{ file.original_filename }}">{{ file.original_filename }}</span>
+                            
+                            <div class="file-meta-grid">
+                                <div class="meta-item">
+                                    <span class="meta-label">Taille</span>
+                                    <span class="meta-value">{{ (file.file_size / 1024) | round(1) }} KB</span>
+                                </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Indexé le</span>
+                                    <span class="meta-value">{{ file.created_at.strftime('%d.%m.%y') }}</span>
+                                </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Publieur</span>
+                                    <span class="meta-value">{{ file.uploader.username if file.uploader else 'Inconnu' }}</span>
+                                </div>
+                            </div>
+
+                            <a href="/static/uploads/{{ file.filename }}" class="btn-download" download="{{ file.original_filename }}">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Télécharger
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <div style="grid-column: 1/-1; text-align: center; padding: 100px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border);">
+                        <div style="font-size: 3rem; margin-bottom: 20px; opacity: 0.3;">📭</div>
+                        AUCUN FICHIER DÉTECTÉ DANS LA BASE DE DONNÉES.
+                    </div>
+                {% endfor %}
+            </div>
+            </div>
+        </main>
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-resizer" id="sidebar-resizer"></div>
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <span class="sidebar-title">RECHERCHE AVANCÉE</span>
+                    <div class="search-wrapper" style="margin-bottom: 20px;">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="file-search-advanced" placeholder="Nom du fichier..." autocomplete="off" list="file-suggestions">
+                        <datalist id="file-suggestions">
+                            {% for file in files %}
+                            <option value="{{ file.original_filename }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="sidebar-title">FILTRES DE TYPE</span>
+                    <ul class="filter-list">
+                        <li class="filter-item active" data-type="all">
+                            <input type="checkbox" checked class="filter-checkbox" data-type="all">
+                            <span>Tous les fichiers</span>
+                            <span class="filter-count">{{ counts.all }}</span>
+                        </li>
+                        <li class="filter-item" data-type="image">
+                            <input type="checkbox" class="filter-checkbox" data-type="image">
+                            <span>Images</span>
+                            <span class="filter-count">{{ counts.image }}</span>
+                        </li>
+                        <li class="filter-item" data-type="video">
+                            <input type="checkbox" class="filter-checkbox" data-type="video">
+                            <span>Vidéos</span>
+                            <span class="filter-count">{{ counts.video }}</span>
+                        </li>
+                        <li class="filter-item" data-type="application">
+                            <input type="checkbox" class="filter-checkbox" data-type="document">
+                            <span>Documents</span>
+                            <span class="filter-count">{{ counts.document }}</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="sidebar-title">{{ _('uploader') | upper }}</span>
+                    <div class="multi-select-uploader" id="uploader-filter">
+                        {% for uploader in uploaders %}
+                        <label class="uploader-option">
+                            <input type="checkbox" value="{{ uploader.id }}">
+                            <span>{{ uploader.username }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="sidebar-title">PÉRIODE</span>
+                    <select id="date-filter" class="advanced-select">
+                        <option value="all">Toute la période</option>
+                        <option value="today">Aujourd'hui</option>
+                        <option value="week">Cette semaine</option>
+                        <option value="month">Ce mois</option>
+                        <option value="custom">Personnalisé...</option>
+                    </select>
+                    <div id="custom-date-range" style="display: none; margin-top: 10px;">
+                        <input type="date" id="date-start" class="date-input">
+                        <input type="date" id="date-end" class="date-input">
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="sidebar-title">TAILLE DU FICHIER</span>
+                    <div class="size-filter-range">
+                        <input type="range" id="size-min" min="0" max="100" value="0">
+                        <div class="range-labels">
+                            <span>0 MB</span>
+                            <span id="size-max-label">100 MB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="sidebar-title">TRIER PAR</span>
+                    <select id="sort-filter" class="advanced-select">
+                        <option value="date-desc">Plus récents</option>
+                        <option value="date-asc">Plus anciens</option>
+                        <option value="name-asc">Nom (A-Z)</option>
+                        <option value="name-desc">Nom (Z-A)</option>
+                        <option value="size-desc">Taille (Max)</option>
+                        <option value="size-asc">Taille (Min)</option>
+                    </select>
+                </div>
+
+                {% if current_user.role.name == 'SUPREME' %}
+                <div class="sidebar-section admin-section" style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,0,0,0.2);">
+                    <span class="sidebar-title" style="color: #ff4444;">SUPREME ADMIN</span>
+                    <button id="bulk-delete-btn" class="admin-btn-danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        SUPPRESSION MASSIVE
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        
+        // Sidebar Toggle & Resizing
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('sidebar-resizer');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                document.removeEventListener('mousemove', handleMouseMove);
+            });
+        });
+
+        function handleMouseMove(e) {
+            if (!isResizing) return;
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth > 200 && newWidth < 600) {
+                sidebar.style.width = newWidth + 'px';
+            }
+        }
+
+        document.getElementById('toggle-sidebar').addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+
+        // Advanced Filter Logic
+        const searchInput = document.getElementById('file-search');
+        const advancedSearch = document.getElementById('file-search-advanced');
+        const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+        const uploaderCheckboxes = document.querySelectorAll('#uploader-filter input');
+        const dateFilter = document.getElementById('date-filter');
+        const sizeMin = document.getElementById('size-min');
+        const sizeMaxLabel = document.getElementById('size-max-label');
+        const sortFilter = document.getElementById('sort-filter');
+        const fileCardsContainer = document.querySelector('.files-grid');
+        const fileCards = Array.from(document.querySelectorAll('.file-card'));
+
+        function updateDisplay() {
+            const searchTerm = (searchInput.value || advancedSearch.value).toLowerCase();
+            const activeTypes = Array.from(filterCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.dataset.type);
+            
+            const activeUploaders = Array.from(uploaderCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+
+            const selectedDateRange = dateFilter.value;
+            const minSize = parseInt(sizeMin.value) * 1024 * 1024; // MB to bytes
+
+            fileCards.forEach(card => {
+                const name = card.dataset.filename;
+                const type = card.dataset.fileType;
+                const size = parseInt(card.dataset.size || 0);
+                const uploaderId = card.dataset.uploaderId;
+                const createdAt = new Date(card.dataset.date);
+
+                let matchesSearch = !searchTerm || name.includes(searchTerm);
+                
+                let matchesType = activeTypes.includes('all') || activeTypes.some(t => type.startsWith(t));
+                
+                let matchesUploader = activeUploaders.length === 0 || activeUploaders.includes(uploaderId);
+
+                let matchesSize = size >= minSize;
+
+                let matchesDate = true;
+                const now = new Date();
+                if (selectedDateRange === 'today') {
+                    matchesDate = createdAt.toDateString() === now.toDateString();
+                } else if (selectedDateRange === 'week') {
+                    const weekAgo = new Date(now.setDate(now.getDate() - 7));
+                    matchesDate = createdAt >= weekAgo;
+                } else if (selectedDateRange === 'month') {
+                    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+                    matchesDate = createdAt >= monthAgo;
+                }
+
+                card.style.display = (matchesSearch && matchesType && matchesUploader && matchesSize && matchesDate) ? 'flex' : 'none';
+            });
+
+            // Sorting
+            const sortMode = sortFilter.value;
+            const visibleCards = fileCards.filter(card => card.style.display !== 'none');
+            
+            visibleCards.sort((a, b) => {
+                const nameA = a.dataset.filename;
+                const nameB = b.dataset.filename;
+                const sizeA = parseInt(a.dataset.size || 0);
+                const sizeB = parseInt(b.dataset.size || 0);
+                const dateA = new Date(a.dataset.date);
+                const dateB = new Date(b.dataset.date);
+
+                switch(sortMode) {
+                    case 'name-asc': return nameA.localeCompare(nameB);
+                    case 'name-desc': return nameB.localeCompare(nameA);
+                    case 'size-asc': return sizeA - sizeB;
+                    case 'size-desc': return sizeB - sizeA;
+                    case 'date-asc': return dateA - dateB;
+                    case 'date-desc': return dateB - dateA;
+                    default: return 0;
+                }
+            });
+
+            // Re-append to container in sorted order
+            visibleCards.forEach(card => fileCardsContainer.appendChild(card));
+        }
+
+        [searchInput, advancedSearch, dateFilter, sizeMin, sortFilter].forEach(el => {
+            el.addEventListener('input', () => {
+                if (el === sizeMin) sizeMaxLabel.textContent = `${el.value} MB+`;
+                updateDisplay();
+            });
+        });
+
+        [...filterCheckboxes, ...uploaderCheckboxes].forEach(cb => {
+            cb.addEventListener('change', updateDisplay);
+        });
+
+        // Bulk Delete Action
+        const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.addEventListener('click', async () => {
+                const confirm1 = confirm("⚠️ ATTENTION : Vous allez lancer une procédure de suppression massive. Continuer ?");
+                if (!confirm1) return;
+
+                const confirm2 = prompt("Pour confirmer, tapez 'SUPPRIMER DEFINITIVEMENT' :");
+                if (confirm2 !== 'SUPPRIMER DEFINITIVEMENT') return;
+
+                const filterType = prompt("Type de suppression (all / user / type / date) :");
+                let filterValue = '';
+                if (filterType !== 'all') {
+                    filterValue = prompt(`Entrez la valeur pour le filtre '${filterType}' :`);
+                }
+
+                try {
+                    const response = await fetch('/api/admin/files/bulk-delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            filter_type: filterType,
+                            filter_value: filterValue
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        alert(`${data.deleted_count} fichiers supprimés avec succès.`);
+                        location.reload();
+                    } else {
+                        alert("Erreur : " + data.error);
+                    }
+                } catch (e) {
+                    alert("Erreur lors de la requête.");
+                }
+            });
+        }
+
+        // Real-time Update
+        socket.on('new_file_uploaded', (data) => {
+            // Recharger la page pour une mise à jour propre avec les nouveaux styles
+            // ou injecter dynamiquement (plus complexe avec le nouveau design)
+            location.reload(); 
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+{
+  "meta": { "lang": "en", "pack": 1, "generated": "pipeline-sample" },
+  "scenes": [
+    {
+      "id": "en_village_zylar_1",
+      "node": "village_1",
+      "speaker": "Zylar",
+      "text": "Village 1. Zylar: We greet, smile, and suspect. heh. What now, ${player_name}?",
+      "subtitle": "Village 1. Greet, suspect.",
+      "vars": { "emotion": "neutral", "quest_stage": 1, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -3, "requires_flag": null },
+      "duration_ms": 2100,
+      "tags": ["village", "zylar", "neutral"],
+      "choices": [
+        { "id": "en_village_zylar_1_cont", "label": "Continue", "next": "en_village_zylar_2" },
+        { "id": "en_village_zylar_1_branch", "label": "Explore", "next": "en_forest_zylar_2" }
+      ]
+    },
+    {
+      "id": "en_forest_zylar_2",
+      "node": "forest_1",
+      "speaker": "Zylar",
+      "text": "Forest 2. Zylar: Twigs crack, leaves whisper. heh. Whisper or charge?",
+      "subtitle": "Forest 2. Crack and whisper.",
+      "vars": { "emotion": "curious", "quest_stage": 1, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -2, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["forest", "zylar", "curious"],
+      "choices": [
+        { "id": "en_forest_zylar_2_cont", "label": "Continue", "next": "en_tavern_barkeep_3" },
+        { "id": "en_forest_zylar_2_branch", "label": "Explore", "next": "en_village_vendor_3" }
+      ]
+    },
+    {
+      "id": "en_tavern_barkeep_3",
+      "node": "tavern_2",
+      "speaker": "Barkeep",
+      "text": "Tavern 3. Barkeep: We listen, laugh, lie a little. on tap. What’s next?",
+      "subtitle": "Tavern 3. Listen and laugh.",
+      "vars": { "emotion": "happy", "quest_stage": 2, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 1900,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "en_tavern_barkeep_3_cont", "label": "Continue", "next": "en_bridge_guard_4" },
+        { "id": "en_tavern_barkeep_3_branch", "label": "Explore", "next": "en_village_vendor_4" }
+      ]
+    },
+    {
+      "id": "en_bridge_guard_4",
+      "node": "bridge_2",
+      "speaker": "Guard",
+      "text": "Bridge 4. Guard: Pay, talk, or bypass? halt",
+      "subtitle": "Bridge 4. Pay or bypass?",
+      "vars": { "emotion": "neutral", "quest_stage": 2, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 0, "requires_flag": null },
+      "duration_ms": 1500,
+      "tags": ["bridge", "guard", "neutral"],
+      "choices": [
+        { "id": "en_bridge_guard_4_cont", "label": "Continue", "next": "en_village_vendor_5" },
+        { "id": "en_bridge_guard_4_branch", "label": "Explore", "next": "en_forest_zylar_5" }
+      ]
+    },
+    {
+      "id": "en_village_vendor_5",
+      "node": "village_3",
+      "speaker": "Vendor",
+      "text": "Village 5. Vendor: We greet, smile, and suspect. special. What now, ${player_name}?",
+      "subtitle": "Village 5. Greet, suspect.",
+      "vars": { "emotion": "doubt", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["village", "vendor", "doubt"],
+      "choices": [
+        { "id": "en_village_vendor_5_cont", "label": "Continue", "next": "en_tavern_barkeep_6" },
+        { "id": "en_village_vendor_5_branch", "label": "Explore", "next": "en_forest_zylar_6" }
+      ]
+    },
+    {
+      "id": "en_tavern_barkeep_6",
+      "node": "tavern_3",
+      "speaker": "Barkeep",
+      "text": "Tavern 6. Barkeep: We listen, laugh, lie a little. regular. What’s next?",
+      "subtitle": "Tavern 6. Listen and laugh.",
+      "vars": { "emotion": "happy", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 1, "requires_flag": null },
+      "duration_ms": 1900,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "en_tavern_barkeep_6_cont", "label": "Continue", "next": "en_bridge_guard_7" },
+        { "id": "en_tavern_barkeep_6_branch", "label": "Explore", "next": "en_village_vendor_7" }
+      ]
+    },
+    {
+      "id": "en_bridge_guard_7",
+      "node": "bridge_3",
+      "speaker": "Guard",
+      "text": "Bridge 7. Guard: Pay, talk, or bypass? rule",
+      "subtitle": "Bridge 7. Pay or bypass?",
+      "vars": { "emotion": "neutral", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 0, "requires_flag": null },
+      "duration_ms": 1500,
+      "tags": ["bridge", "guard", "neutral"],
+      "choices": [
+        { "id": "en_bridge_guard_7_cont", "label": "Continue", "next": "en_forest_zylar_8" },
+        { "id": "en_bridge_guard_7_branch", "label": "Explore", "next": "en_village_vendor_8" }
+      ]
+    },
+    {
+      "id": "en_forest_zylar_8",
+      "node": "forest_4",
+      "speaker": "Zylar",
+      "text": "Forest 8. Zylar: Twigs crack, leaves whisper. hmm. Whisper or charge?",
+      "subtitle": "Forest 8. Crack and whisper.",
+      "vars": { "emotion": "angry", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["forest", "zylar", "angry"],
+      "choices": [
+        { "id": "en_forest_zylar_8_cont", "label": "Continue", "next": "en_village_zylar_9" },
+        { "id": "en_forest_zylar_8_branch", "label": "Explore", "next": "en_tavern_barkeep_9" }
+      ]
+    },
+    {
+      "id": "en_village_zylar_9",
+      "node": "village_4",
+      "speaker": "Zylar",
+      "text": "Village 9. Zylar: We greet, smile, and suspect. heh. What now, ${player_name}?",
+      "subtitle": "Village 9. Greet, suspect.",
+      "vars": { "emotion": "neutral", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -3, "requires_flag": null },
+      "duration_ms": 2100,
+      "tags": ["village", "zylar", "neutral"],
+      "choices": [
+        { "id": "en_village_zylar_9_cont", "label": "Continue", "next": "en_tavern_barkeep_10" },
+        { "id": "en_village_zylar_9_branch", "label": "Explore", "next": "en_bridge_guard_10" }
+      ]
+    },
+    {
+      "id": "en_tavern_barkeep_10",
+      "node": "tavern_4",
+      "speaker": "Barkeep",
+      "text": "Tavern 10. Barkeep: We listen, laugh, lie a little. regular. What’s next?",
+      "subtitle": "Tavern 10. Listen and laugh.",
+      "vars": { "emotion": "happy", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 1, "requires_flag": null },
+      "duration_ms": 1900,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "en_tavern_barkeep_10_cont", "label": "Continue", "next": "ending_observer" },
+        { "id": "en_tavern_barkeep_10_branch", "label": "Explore", "next": "resilience" }
+      ]
+    }
+  ]
+}

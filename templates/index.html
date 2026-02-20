@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRONOS - Système de Communication Souverain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/mentions.css">
+    <link rel="stylesheet" href="/static/css/switches.css">
+    <link rel="stylesheet" href="/static/css/buttons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
+
+    <!-- Mustache.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/4.2.0/mustache.min.js"></script>
+</head>
+<body data-theme="{{ theme }}">
+    <!-- OVERLAY DE CHARGEMENT -->
+    <div id="loading-overlay">
+        <div class="loader">
+            <div class="loader-text">KRONOS</div>
+            <div class="loader-bar"></div>
+        </div>
+    </div>
+
+    <!-- INTERFACE PRINCIPALE (masquée tant que non connecté) -->
+    <div id="app-container" style="display: none;">
+        
+        
+        
+        <!-- HEADER HUD -->
+        <header id="hud-header">
+            <div class="hud-left">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" stroke="#CCFF00" stroke-width="2"/>
+                        <path d="M16 8L16 24M8 16L24 16" stroke="#CCFF00" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span class="logo-text">KRONOS</span>
+                </div>
+                
+            </div>
+            
+            <div class="hud-center">
+                
+            </div>
+            
+            <div class="hud-right">
+                <button class="btn-files" id="files-btn" title="Historique des fichiers" data-action="files">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </button>
+                <button class="btn-members" id="members-btn" title="Membres" data-action="members">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                </button>
+                <button class="btn-pins" id="pins-btn" title="Messages épinglés">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 16 6 12 10 8 6"></polygon>
+                        <line x1="12" y1="10" x2="12" y2="22"></line>
+                    </svg>
+                </button>
+                <button class="btn-notifications" id="notif-btn" title="Notifications (Alt+N)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                </button>
+                <button class="btn-panic" id="panic-btn" title="Panic Mode (Ctrl+Space)" data-action="panic">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                        <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </button>
+                <a href="/parametre" class="btn-settings" id="settings-btn" title="Paramètres">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </a>
+                <div class="user-indicator" id="user-indicator" data-action="profile">
+                    <img src="" alt="Avatar" class="user-avatar" id="user-avatar">
+                    <span class="user-name" id="user-name"></span>
+                    <span class="user-role-badge" id="user-role-badge"></span>
+                </div>
+                <button class="btn-menu" id="main-menu-btn" title="Menu Principal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- MENU PRINCIPAL (Overlay) -->
+        <div id="main-menu-overlay" class="menu-overlay">
+            <div class="menu-content">
+                <div class="menu-header">
+                    <h3>KRONOS SYSTEM</h3>
+                    <button id="close-main-menu" title="Fermer le menu">&times;</button>
+                </div>
+                <nav class="menu-nav">
+                    <a href="/" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                        <span>ACCUEIL</span>
+                    </a>
+                    <a href="/membre" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <span>MEMBRES</span>
+                    </a>
+                    <a href="/fichiers" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        <span>GALERIE FICHIERS</span>
+                    </a>
+                    <a href="/game" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="14" rx="2" ry="2"></rect>
+                            <circle cx="9" cy="11" r="2"></circle>
+                            <circle cx="15" cy="11" r="2"></circle>
+                        </svg>
+                        <span>JEUX</span>
+                    </a>
+                    <a href="/parametre" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>PARAMÈTRES</span>
+                    </a>
+                    {% if current_user.is_admin %}
+                    <a href="/log" class="menu-item admin-only">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <span>LOGS SYSTÈME</span>
+                    </a>
+                    {% endif %}
+                    <a href="/credits" class="menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        <span>CRÉDITS</span>
+                    </a>
+                    <button onclick="handleLogout()" class="menu-item logout-item" style="width: 100%; background: none; border: none; cursor: pointer; color: #f44336; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        <span>DÉCONNEXION</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- ZONE PRINCIPALE -->
+        <main id="main-content">
+            
+            <!-- FLUX DE MESSAGES -->
+            <div id="chat-viewport">
+                <div id="messages-container">
+                    <!-- Messages chargés dynamiquement -->
+                </div>
+                <div id="typing-indicator" class="typing-indicator" style="display: none;">
+                    <span class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </span>
+                    <span class="typing-text"></span>
+                </div>
+            </div>
+
+            <!-- ZONE DE COMPOSITION -->
+            <div id="compose-area">
+                <div class="compose-container">
+                    <!-- Zone de statut/notification visible -->
+                    <div id="status-bar" style="display: none; padding: 8px 12px; margin-bottom: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-ui); font-size: 12px; color: var(--text-secondary);">
+                        <span id="status-text"></span>
+                    </div>
+                    
+                    <div class="reply-preview" id="reply-preview" style="display: none;">
+                        <div class="reply-line"></div>
+                        <div class="reply-content">
+                            <span class="reply-author"></span>
+                            <span class="reply-text"></span>
+                        </div>
+                        <button class="reply-cancel" id="reply-cancel">×</button>
+                    </div>
+                    
+                    <div id="mention-list" class="mention-list" style="display: none;"></div>
+
+                    <!-- Zone d'aperçu des pièces jointes -->
+                    <div id="attachments-preview" class="attachments-preview"></div>
+                    
+                    <div class="input-wrapper">
+                        <button class="attach-btn" id="attach-btn" title="Joindre un fichier">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                        </button>
+                        <textarea id="message-input" placeholder="Tapez votre message..." rows="1"></textarea>
+                        <button class="reply-cancel" id="cancel-edit-btn" title="Annuler l'édition" style="display: none;">×</button>
+                        <button class="send-btn" id="send-btn" title="Envoyer">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input file caché pour les pièces jointes -->
+            <input type="file" id="message-file-input" multiple style="display: none;">
+
+            <!-- DOCK DE NAVIGATION (bas d'écran) -->
+            <nav id="dock-nav">
+                <div class="dock-channels" id="dock-channels">
+                    <!-- Salons générés dynamiquement -->
+                </div>
+            </nav>
+
+        </main>
+
+        <!-- PANEAUX LATÉRAUX (Overlay) -->
+        <aside id="members-panel" class="side-panel right">
+            <div class="panel-header">
+                <h3>Membres</h3>
+                <span class="member-count" id="member-count">0</span>
+                <button class="panel-close" id="close-members">×</button>
+            </div>
+            
+            <!-- Onglets Membres / Bannis -->
+            <div class="members-tabs" id="members-tabs">
+                <button class="members-tab active" data-tab="members">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>Membres</span>
+                    <span class="tab-count" id="count-members">0</span>
+                </button>
+                <button class="members-tab" data-tab="banned">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                    </svg>
+                    <span>Bannis</span>
+                    <span class="tab-count" id="count-banned">0</span>
+                </button>
+            </div>
+            
+            <div class="panel-content">
+                <!-- Stats des membres (visible uniquement dans l'onglet Membres) -->
+                <div class="members-stats" id="members-stats" style="display: none;">
+                    <div class="members-stat">
+                        <span class="members-stat-dot online"></span>
+                        <span class="members-stat-count" id="stat-online">0</span>
+                        <span>En ligne</span>
+                    </div>
+                    <div class="members-stat">
+                        <span class="members-stat-dot away"></span>
+                        <span class="members-stat-count" id="stat-away">0</span>
+                        <span>Absent</span>
+                    </div>
+                    <div class="members-stat">
+                        <span class="members-stat-dot offline"></span>
+                        <span class="members-stat-count" id="stat-offline">0</span>
+                        <span>Absent(e)</span>
+                    </div>
+                </div>
+                
+                <!-- Recherche de membres (visible uniquement dans l'onglet Membres) -->
+                <div class="members-search" id="members-search-container">
+                    <input type="text" class="members-search-input" id="members-search" placeholder="Rechercher un membre...">
+                </div>
+                
+                <!-- Liste des membres (onglet Membres) -->
+                <div class="members-list-container" id="members-list-container">
+                    <div class="members-list" id="members-list">
+                        <!-- Liste des membres -->
+                    </div>
+                </div>
+                
+                <!-- Liste des bannis (onglet Bannis) -->
+                <div class="members-list-container" id="banned-list-container" style="display: none;">
+                    <div class="members-list banned-list" id="banned-list">
+                        <!-- Liste des bannis -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <aside id="files-panel" class="side-panel right">
+            <div class="panel-header">
+                <h3>Fichiers</h3>
+                <span class="member-count" id="files-count">0</span>
+                <button class="panel-close" id="close-files">×</button>
+            </div>
+            <div class="panel-content" id="files-list">
+                <!-- Historique des fichiers -->
+                <div class="files-loading" style="text-align: center; padding: 20px;">
+                    <span style="color: var(--text-secondary);">Chargement...</span>
+                </div>
+            </div>
+        </aside>
+
+        <aside id="pins-panel" class="side-panel right">
+            <div class="panel-header">
+                <h3>Épinglés</h3>
+                <button class="panel-close" id="close-pins">×</button>
+            </div>
+            <div class="panel-content" id="pins-list">
+                <!-- Messages épinglés -->
+            </div>
+        </aside>
+
+        <aside id="profile-panel" class="side-panel">
+            <div class="panel-header">
+                <h3>Profil</h3>
+                <button class="panel-close" id="close-profile">×</button>
+            </div>
+            <div class="panel-content" id="profile-content">
+                <!-- Contenu du profil -->
+            </div>
+        </aside>
+
+        
+        <div id="private-messaging-panel" class="private-messaging">
+            <div class="private-messaging-header">
+                <div class="private-chat-info">
+                    <span class="private-chat-name">Messagerie Privée</span>
+                    <span id="private-unread-badge" class="private-unread-badge" style="display:none;"><span>0</span></span>
+                </div>
+            </div>
+            <div class="private-messaging-content">
+                <aside class="private-conversations-sidebar">
+                    <div class="private-conversations-header">
+                        <h4>Conversations</h4>
+                    </div>
+                    <div id="private-conversations-list" class="private-conversations-list">
+                    </div>
+                </aside>
+                <div class="private-chat-area" style="display: none;">
+                    <div class="private-chat-header">
+                        <div class="private-chat-user-info" id="private-chat-user-info" style="display:none;">
+                            <img id="private-chat-avatar" class="private-chat-avatar" src="/static/icons/default_avatar.svg" alt="">
+                            <div class="private-chat-user-details">
+                                <span id="private-chat-username" class="private-chat-username"></span>
+                                <span id="private-chat-status" class="private-chat-status offline">Hors ligne</span>
+                            </div>
+                        </div>
+                        <div class="private-chat-actions" style="display: none;">
+                            <button class="btn-secondary" id="private-files-btn" title="Fichiers">Fichiers</button>
+                            <button class="btn-secondary" id="leave-private-chat" title="Quitter">Quitter</button>
+                            <button class="btn-secondary" id="close-private-chat" title="Fermer">×</button>
+                        </div>
+                    </div>
+                    <div id="private-messages-container" class="private-messages-container">
+                        <div class="private-empty-state">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <h3>Aucune conversation</h3>
+                            <p>Choisissez un utilisateur pour démarrer un échange privé.</p>
+                        </div>
+                    </div>
+                        <div class="private-compose-area">
+                        <div class="private-attachments-preview" id="private-attachments-preview"></div>
+                        <div class="private-input-wrapper">
+                            <button class="private-attach-btn" id="private-attach-btn" title="Joindre">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                            </button>
+                            <textarea id="private-message-input" placeholder="Votre message..." rows="1"></textarea>
+                            <button class="reply-cancel" id="private-cancel-edit-btn" title="Annuler l'édition" style="display: none;">×</button>
+                            <button class="private-send-btn" id="private-send-btn" title="Envoyer">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13"/>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="file" id="private-file-input" multiple style="display:none;">
+                    </div>
+                </div>
+                <aside id="private-files-panel" class="private-files-panel" style="display: none;">
+                    <div class="private-files-header">
+                        <h4>Fichiers de la conversation</h4>
+                        <button class="panel-close" id="close-private-files">×</button>
+                    </div>
+                    <div class="private-files-content" id="private-files-list">
+                        <div class="empty-state" style="padding: 24px;">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <p style="color: var(--text-muted); margin-top: var(--space-sm);">Aucun fichier partagé dans cette conversation</p>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODALES -->
+    <div id="modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal" id="context-menu" style="display: none;">
+            <!-- Menu contextuel généré dynamiquement -->
+        </div>
+        
+        <div class="modal settings-modal" id="settings-modal" style="display: none;">
+            <div class="modal-header">
+                <h2>Paramètres</h2>
+                <button class="modal-close" id="close-settings">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="settings-tabs">
+                    <button class="tab-btn active" data-tab="profile">Profil</button>
+                    <button class="tab-btn" data-tab="shortcuts">Raccourcis</button>
+                    <button class="tab-btn" data-tab="appearance">Apparence</button>
+                    <button class="tab-btn" data-tab="notifications">Notifications</button>
+                    <button class="tab-btn admin-only" data-tab="admin" style="display: none;">Administration</button>
+                </div>
+                <div class="settings-content">
+                    <!-- Contenu des onglets -->
+                </div>
+            </div>
+        </div>
+
+        <div class="modal admin-modal" id="admin-modal" style="display: none;">
+            <div class="modal-header">
+                <h2>Administration</h2>
+                <button class="modal-close" id="close-admin">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="admin-tabs">
+                    <button class="tab-btn active" data-tab="users">Utilisateurs</button>
+                    <button class="tab-btn" data-tab="banned-ips">IPs Bannies</button>
+                    <button class="tab-btn" data-tab="logs">Journal</button>
+                    <button class="tab-btn" data-tab="stats">Statistiques</button>
+                </div>
+                <div class="admin-content">
+                    <!-- Contenu admin -->
+                </div>
+            </div>
+        </div>
+
+        <div class="modal viewer-modal" id="file-viewer" style="display: none;">
+            <div class="modal-header">
+                <h2 id="viewer-title"></h2>
+                <button class="modal-close" id="close-viewer">×</button>
+            </div>
+            <div class="modal-content viewer-content" id="viewer-content">
+                <!-- Visionneuse de fichiers -->
+            </div>
+        </div>
+    </div>
+
+    <!-- INPUT FILE CACHÉ -->
+    <input type="file" id="file-input" multiple style="display: none;">
+
+    <!-- TEMPLATES JAVASCRIPT -->
+    {% raw %}
+    <script id="message-template" type="text/template">
+        {{#is_system}}
+        <div class="message system-message" data-message-id="{{id}}">
+            <div class="message-content">
+                <span class="message-text">{{{content}}}</span>
+                <span class="message-time">{{time}}</span>
+            </div>
+        </div>
+        {{/is_system}}
+        {{^is_system}}
+        <div class="message {{#is_mine}}own-message{{/is_mine}} {{#is_reply}}reply-message{{/is_reply}}" 
+             data-message-id="{{id}}" 
+             data-channel-id="{{channel_id}}"
+             data-author-id="{{author.id}}"
+             data-author-name="{{author.username}}"
+             style="{{#reply_to}}margin-top: 0;{{/reply_to}}">
+            
+            {{#reply_to}}
+            <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('{{reply_to.id}}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                <span class="reply-original">{{reply_to.author.username}}: {{reply_to.content}}</span>
+            </div>
+            {{/reply_to}}
+            
+            <div class="message-container">
+                {{^is_mine}}
+                <img src="{{author.avatar}}" alt="" class="message-avatar" onerror="this.src='/static/icons/default_avatar.svg'">
+                {{/is_mine}}
+                    <div class="message-main">
+                    {{^is_mine}}
+                    <div class="message-header">
+                        <span class="message-author {{#author.is_banned}}banned-author{{/author.is_banned}}" 
+                              onclick="event.stopPropagation(); KRONOS.showUserProfile({{json author}})">
+                            {{author.display_name}}
+                            <span class="role-badge {{author.role}}">{{author.role_name}}</span>
+                        </span>
+                        {{#author.is_banned}}<span class="banned-badge">Banni</span>{{/author.is_banned}}
+                        <span class="message-time">{{time}}</span>
+                    </div>
+                    {{/is_mine}}
+                    
+                    <div class="message-bubble {{#is_mine}}own{{/is_mine}}">
+                        {{#reply_to}}
+                        <div class="reply-preview-bubble" onclick="event.stopPropagation(); KRONOS.scrollToMessage('{{reply_to.id}}')">
+                            <span class="reply-preview-author">{{reply_to.author.username}}</span>
+                            <span class="reply-preview-text">{{reply_to.content}}</span>
+                        </div>
+                        {{/reply_to}}
+                        <div class="message-text-wrapper">
+                            <span class="message-text">{{{content}}}</span>
+                        </div>
+                        {{{attachments_html}}}
+                        {{#has_content}}
+                        <span class="message-emojis">
+                            {{#has_reactions}}
+                            <span class="reaction {{reaction_emoji}}" onclick="KRONOS.addReaction('{{id}}', '{{reaction_emoji}}')">
+                                {{reaction_emoji}} {{reaction_count}}
+                            </span>
+                            {{/has_reactions}}
+                            {{#can_add_reaction}}
+                            <span class="add-reaction" onclick="KRONOS.showReactionPicker(event, '{{id}}')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="8" x2="12" y2="16"/>
+                                    <line x1="8" y1="12" x2="16" y2="12"/>
+                                </svg>
+                            </span>
+                            {{/can_add_reaction}}
+                        </span>
+                        {{/has_content}}
+                    </div>
+                    
+                    <div class="message-actions">
+                        {{#can_edit}}
+                        <button class="message-action" onclick="KRONOS.editMessage('{{id}}', `{{{content}}}`)" title="Modifier">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        {{/can_edit}}
+                        {{#can_delete}}
+                        <button class="message-action" onclick="KRONOS.deleteMessage('{{id}}')" title="Supprimer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                        {{/can_delete}}
+                        <button class="message-action" onclick="KRONOS.replyToMessage('{{id}}', '{{author.username}}')" title="Répondre">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"/>
+                            </svg>
+                        </button>
+                        {{#can_react}}
+                        <button class="message-action" onclick="KRONOS.addReaction('{{id}}', '👍')" title="Réaction">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                            </svg>
+                        </button>
+                        {{/can_react}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/is_system}}
+    </script>
+    
+    <script id="file-template" type="text/template">
+        {{#files}}
+        <div class="file-item" onclick="KRONOS.viewFile('{{url}}')">
+            <div class="file-icon">
+                {{#is_image}}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                {{/is_image}}
+                {{#is_video}}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="23 7 16 12 23 17 23 7"/>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+                {{/is_video}}
+                {{#is_audio}}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                </svg>
+                {{/is_audio}}
+                {{#is_file}}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <polyline points="13 2 13 9 20 9"/>
+                </svg>
+                {{/is_file}}
+                {{#is_code}}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 18 22 12 16 6"/>
+                    <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                {{/is_code}}
+            </div>
+            <div class="file-info">
+                <span class="file-name" title="{{original_filename}}">{{original_filename}}</span>
+                <span class="file-meta">{{size}} • {{date}}</span>
+            </div>
+            <a href="{{url}}" download="{{original_filename}}" class="file-download" title="Télécharger">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </a>
+        </div>
+        {{/files}}
+        {{^files}}
+        <div class="no-files">
+            <span>Aucun fichier partagé</span>
+        </div>
+        {{/files}}
+    </script>
+    {% endraw %}
+    <script src="/static/js/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/4.2.0/mustache.min.js"></script>
+    <script>
+        // Override Socket.IO to use long-polling by default
+        window.io = io;
+    </script>
+    <script src="/static/js/kronos.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIO : @{{ user.username }} | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .bio-container {
+            max-width: 600px;
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            padding: 40px;
+            box-shadow: var(--shadow-sharp);
+        }
+        h1 { color: var(--accent); margin-bottom: 30px; }
+        .bio-content {
+            line-height: 1.8;
+            white-space: pre-wrap;
+            color: var(--text-secondary);
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 40px;
+            color: var(--accent);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="bio-container">
+        <h1>BIO DE @{{ user.username }}</h1>
+        <div class="bio-content">
+            {{ user.bio or "Aucune bio disponible." }}
+        </div>
+        <a href="/{{ user.username }}" class="back-link">← RETOUR AU PROFIL</a>
+    </div>
+</body>
+</html>

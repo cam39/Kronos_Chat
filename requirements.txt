@@ -1,0 +1,30 @@
+# KRONOS - Système de Communication Souverain
+# Dépendances Python
+
+# Framework web
+Flask>=2.3.0
+Flask-SocketIO>=5.3.0
+Flask-SQLAlchemy>=3.0.0
+Flask-Login>=0.6.0
+Flask-CORS>=4.0.0
+Flask-DebugToolbar>=0.13.1
+
+# Serveur WSGI pour Socket.IO
+python-socketio>=5.8.0
+python-engineio>=4.5.0
+gevent>=23.0.0
+gevent-websocket>=0.10.1
+
+# Base de données
+SQLAlchemy>=2.0.0
+
+# Sécurité
+argon2-cffi>=21.0.0
+
+# Utilitaires
+python-dotenv>=1.0.0
+Werkzeug>=2.3.0
+
+# Extensions optionnelles pour fonctionnalités avancées
+pillow>=10.0.0  # Pour le redimensionnement des avatars
+# pdf2image>=1.16.0  # Pour les aperçus PDF (nécessite poppler)

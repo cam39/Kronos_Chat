@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRÉDITS | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        :root {
+            --card-bg: rgba(30, 30, 35, 0.4);
+            --card-border: rgba(255, 255, 255, 0.05);
+            --accent: #00ff88;
+            --accent-rgb: 0, 255, 136;
+        }
+
+        body {
+            background: #050505;
+            color: #ffffff;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at 50% 50%, #111 0%, #000 100%);
+        }
+        
+        .nav-back {
+            position: fixed;
+            top: 40px;
+            left: 40px;
+            z-index: 100;
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 12px 24px;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            border-radius: 4px;
+        }
+
+        .btn-back:hover {
+            background: #fff;
+            color: #000;
+            transform: translateX(-5px);
+            box-shadow: 0 10px 30px rgba(255,255,255,0.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 150px 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 150px;
+            perspective: 1000px;
+        }
+
+        h1 {
+            font-size: clamp(4rem, 15vw, 10rem);
+            margin: 0;
+            font-weight: 900;
+            letter-spacing: -5px;
+            line-height: 0.8;
+            background: linear-gradient(to bottom, #fff 40%, rgba(255,255,255,0.1) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: titleReveal 1.5s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+        }
+
+        @keyframes titleReveal {
+            from { transform: translateY(100px) rotateX(-30deg); opacity: 0; filter: blur(20px); }
+            to { transform: translateY(0) rotateX(0); opacity: 1; filter: blur(0); }
+        }
+
+        .subtitle {
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 15px;
+            font-size: 0.8rem;
+            margin-top: 20px;
+            font-weight: 700;
+            opacity: 0;
+            animation: fadeIn 1s ease 1s forwards;
+        }
+
+        .credits-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+        }
+
+        .credit-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 60px;
+            position: relative;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0;
+            transform: translateY(60px);
+            backdrop-filter: blur(15px);
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .credit-card.reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .credit-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
+        }
+
+        .role {
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+        }
+
+        .name {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 25px;
+            color: #fff;
+            letter-spacing: -1px;
+        }
+
+        .desc {
+            color: rgba(255,255,255,0.5);
+            line-height: 1.8;
+            font-size: 1.1rem;
+            max-width: 90%;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 200px;
+            padding-bottom: 80px;
+            color: rgba(255,255,255,0.2);
+            font-size: 0.7rem;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 900px) {
+            .credits-grid { grid-template-columns: 1fr; }
+            .container { padding: 100px 20px; }
+            .name { font-size: 2.5rem; }
+            .credit-card { padding: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="nav-back">
+        <a href="/" class="btn-back">RETOUR</a>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <h1>KRONOS</h1>
+            <div class="subtitle">PROJECT SYSTEM</div>
+        </header>
+
+        <div class="credits-grid">
+            <!-- labananerandom -->
+            <div class="credit-card">
+                <span class="role">Lead Architect</span>
+                <div class="name">labananerandom</div>
+                <div class="desc">Développeur principal. Architecte système. Visionnaire derrière l'infrastructure Kronos. (Note : certains modules intègrent des fondations externes pour une stabilité optimale).</div>
+            </div>
+
+            <!-- Internet -->
+            <div class="credit-card">
+                <span class="role">Open Source & Research</span>
+                <div class="name">The Web</div>
+                <div class="desc">Fondations technologiques et bases algorithmiques. Une reconnaissance aux milliers de contributeurs open-source qui rendent ce projet possible.</div>
+            </div>
+
+            <!-- Discord -->
+            <div class="credit-card">
+                <span class="role">Knowledge Base</span>
+                <div class="name">Discord</div>
+                <div class="desc">Soutien technique crucial via les communautés de développeurs. Expertise partagée et résolution de problématiques complexes.</div>
+            </div>
+
+            <!-- lolopoquo -->
+            <div class="credit-card">
+                <span class="role">Quality Assurance</span>
+                <div class="name">lolopoquo</div>
+                <div class="desc">Analyste de test principal. Responsable de la détection d'anomalies et de l'optimisation de l'expérience utilisateur finale.</div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            KRONOS PROTOCOL &copy; 2026 | SYSTEM STABLE
+        </footer>
+    </div>
+
+    <script>
+        // Reveal animation
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('reveal');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.credit-card').forEach(card => observer.observe(card));
+
+        // Background Particles
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, particles;
+
+        class Particle {
+            constructor() {
+                this.init();
+            }
+            init() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 1.5;
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.opacity = Math.random();
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x < 0 || this.x > width) this.speedX *= -1;
+                if (this.y < 0 || this.y > height) this.speedY *= -1;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function setup() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            particles = Array.from({ length: 150 }, () => new Particle());
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(loop);
+        }
+
+        window.addEventListener('resize', setup);
+        setup();
+        loop();
+    </script>
+</body>
+</html>

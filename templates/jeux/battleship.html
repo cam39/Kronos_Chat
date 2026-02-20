@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos Battleship</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/battleship.css">
+<script src="/static/js/socket.io.min.js"></script>
+</head>
+<body class="game-layout theme-dark">
+<div id="bs-root" class="bs-root">
+  <div class="bs-header">
+    <div class="bs-title">Battleship</div>
+    <div class="bs-code" id="bs-code"></div>
+  </div>
+  <div class="bs-topbar">
+    <div class="player" id="p1-info">
+      <img id="p1-avatar" class="player-avatar" src="/static/icons/default_avatar.svg" alt="P1">
+      <div class="player-name" id="p1-name">Joueur 1</div>
+    </div>
+    <div class="player" id="p2-info">
+      <img id="p2-avatar" class="player-avatar" src="/static/icons/default_avatar.svg" alt="P2">
+      <div class="player-name" id="p2-name">Joueur 2</div>
+    </div>
+  </div>
+  <div class="bs-controls">
+    <div id="bs-hint" style="color:var(--text-muted); margin-right:auto;">Appuyez sur R pour pivoter le bateau</div>
+  </div>
+  <div class="bs-main">
+    <div class="bs-main-left game-zone">
+      <div class="bs-boards">
+        <div class="bs-board">
+          <div class="bs-board-title">Ta flotte</div>
+          <div id="board-p1" class="grid"></div>
+        </div>
+        <div class="bs-board">
+          <div class="bs-board-title" id="opponent-title">Adversaire</div>
+          <div id="board-p2" class="grid"></div>
+        </div>
+      </div>
+      <div id="bs-status" class="bs-status"></div>
+      <div id="bs-spectator" class="bs-spectator" style="display:none">Mode spectateur</div>
+    </div>
+    <div class="bs-main-right chat-column">
+      <div class="bs-mini-chat" id="bs-mini-chat">
+        <div class="chat-title">Chat de la partie</div>
+        <div class="chat-messages" id="bs-chat-messages"></div>
+        <input id="bs-chat-input" class="chat-input" type="text" placeholder="Message... (Enter)">
+      </div>
+    </div>
+  </div>
+  <div class="bs-footer">
+    <button id="bs-ready" class="btn-primary btn-ready" style="display:none" disabled>PRÊT</button>
+    <button id="bs-rematch" class="btn-secondary" style="display:none">Revanche</button>
+  </div>
+  <div id="bs-toast" class="bs-toast" style="display:none"></div>
+  <input type="hidden" id="bs-game-code" value="{{ request.args.get('code','') }}">
+  <input type="hidden" id="bs-spectate" value="{{ '1' if request.args.get('spectate') else '' }}">
+  <input type="hidden" id="bs-self-id" value="{{ current_user.id if current_user.is_authenticated else '' }}">
+</div>
+<script src="/static/js/battleship_client.js"></script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+{
+  "meta": {
+    "version": 1,
+    "character": {
+      "name": "Zylar",
+      "title": "Troll charismatique",
+      "palette": ["#ccff00", "#0f0f12", "#2a2a32"]
+    }
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "node": "introduction",
+      "text": "Zylar : « Bienvenue, petit explorateur. Alors, tu te perds ou tu me cherches ? »",
+      "vars": { "affinity": 0, "emotion": "neutral", "items": [], "events": [] },
+      "choices": [
+        { "id": "intro_observe", "label": "Réponse 1 : « Je veux voir le village. »", "next": "observe" },
+        { "id": "intro_defy", "label": "Réponse 2 : « La forêt m’appelle. »", "next": "defy" }
+      ]
+    },
+    {
+      "id": "observe",
+      "node": "ramification_1",
+      "text": "Zylar : « Le village ? Des toits qui rient, des portes qui mentent. Tu veux un guide ou tu préfères improviser ? »",
+      "vars": { "affinity": 1, "emotion": "curious", "items": [], "events": ["observateur"] },
+      "choices": [
+        { "id": "observe_trust", "label": "Réponse 1 : « Guide-moi, Zylar. »", "next": "trust" },
+        { "id": "observe_doubt", "label": "Réponse 2 : « J’improvise. »", "next": "doubt" }
+      ]
+    },
+    {
+      "id": "defy",
+      "node": "ramification_1",
+      "text": "Zylar : « La forêt ? Hah ! Elle mord, mais elle nourrit. Tu veux que je parle, ou tu préfères écouter les arbres ? »",
+      "vars": { "affinity": -1, "emotion": "angry", "items": [], "events": ["defi"] },
+      "choices": [
+        { "id": "defy_push", "label": "Réponse 1 : « Parle-moi des sentiers. »", "next": "stress_test" },
+        { "id": "defy_mock", "label": "Réponse 2 : « Je n’ai pas besoin d’aide. »", "next": "mock" }
+      ]
+    },
+    {
+      "id": "trust",
+      "node": "ramification_2",
+      "text": "Zylar : « Sage décision. Avec moi, tu verras ce qu’il faut voir, et tu éviteras ce qui coûte trop cher. Premier arrêt ? »",
+      "vars": { "affinity": 2, "emotion": "happy", "items": [], "events": ["confiance"] },
+      "choices": [
+        { "id": "trust_deep", "label": "Réponse 1 : « La place du marché. »", "next": "deep_archives" },
+        { "id": "trust_careful", "label": "Réponse 2 : « Les ruelles cachées. »", "next": "surface_analysis" }
+      ]
+    },
+    {
+      "id": "doubt",
+      "node": "ramification_2",
+      "text": "Zylar : « L’impro, hein ? Alors tu choisis : je te dis un secret, ou je me tais ? »",
+      "vars": { "affinity": 0, "emotion": "neutral", "items": [], "events": ["doute"] },
+      "choices": [
+        { "id": "doubt_challenge", "label": "Réponse 1 : « Dis ton secret. »", "next": "deep_archives" },
+        { "id": "doubt_stepback", "label": "Réponse 2 : « Garde-le. »", "next": "surface_analysis" }
+      ]
+    },
+    {
+      "id": "stress_test",
+      "node": "ramification_3",
+      "text": "Zylar : « Les sentiers ? Certains mentent. D’autres mènent. Tu préfères la piste sûre… ou l’histoire drôle ? »",
+      "vars": { "affinity": 1, "emotion": "curious", "items": [], "events": ["stress"] },
+      "choices": [
+        { "id": "stress_endure", "label": "Réponse 1 : « La piste sûre. »", "next": "resilience" },
+        { "id": "stress_break", "label": "Réponse 2 : « L’histoire drôle. »", "next": "rage_path" }
+      ]
+    },
+    {
+      "id": "mock",
+      "node": "ramification_3",
+      "text": "Zylar : « Oh, un héros sans oreilles. Très bien, parlons par gestes… ou par conséquences. »",
+      "vars": { "affinity": -2, "emotion": "angry", "items": [], "events": ["moquerie"] },
+      "choices": [
+        { "id": "mock_double", "label": "Réponse 1 : « Continue de te moquer. »", "next": "rage_path" },
+        { "id": "mock_shift", "label": "Réponse 2 : « D’accord, je t’écoute. »", "next": "resilience" }
+      ]
+    },
+    {
+      "id": "deep_archives",
+      "node": "climax",
+      "text": "Zylar : « Le marché chante, les secrets coûtent, les sourires se louent. Tu veux marchander, ou observer ? »",
+      "vars": { "affinity": 3, "emotion": "curious", "items": ["fragment"], "events": ["archives"] },
+      "choices": [
+        { "id": "archives_bind", "label": "Réponse 1 : « Marchander. »", "next": "ending_alliance" },
+        { "id": "archives_steal", "label": "Réponse 2 : « Observer. »", "next": "ending_rogue" }
+      ]
+    },
+    {
+      "id": "surface_analysis",
+      "node": "alternatif",
+      "text": "Zylar : « Les ruelles parlent bas. Tu veux que je traduise, ou tu préfères deviner ? »",
+      "vars": { "affinity": 1, "emotion": "neutral", "items": [], "events": ["surface"] },
+      "choices": [
+        { "id": "surface_leave", "label": "Réponse 1 : « Traduire. »", "next": "ending_observer" },
+        { "id": "surface_dive", "label": "Réponse 2 : « Deviner. »", "next": "deep_archives" }
+      ]
+    },
+    {
+      "id": "resilience",
+      "node": "resolution",
+      "text": "Zylar : « Tu tiens bon. Ça me plaît. On fait équipe, ou tu marches seul ? »",
+      "vars": { "affinity": 2, "emotion": "happy", "items": [], "events": ["resilience"] },
+      "choices": [
+        { "id": "resilience_guardian", "label": "Réponse 1 : « Équipe. »", "next": "ending_guardian" },
+        { "id": "resilience_vanish", "label": "Réponse 2 : « Seul. »", "next": "ending_ghost" }
+      ]
+    },
+    {
+      "id": "rage_path",
+      "node": "resolution",
+      "text": "Zylar : « Ça brûle, hein ? La colère nourrit les décisions courtes. Tu veux casser… ou réparer ? »",
+      "vars": { "affinity": -3, "emotion": "angry", "items": [], "events": ["rage"] },
+      "choices": [
+        { "id": "rage_crash", "label": "Réponse 1 : « Casser. »", "next": "ending_collapse" },
+        { "id": "rage_control", "label": "Réponse 2 : « Réparer. »", "next": "resilience" }
+      ]
+    },
+    { "id": "ending_alliance", "node": "fin_majeure", "text": "Zylar : « Tu as marchandé avec style. On fera une bonne équipe. »", "vars": { "affinity": 4, "emotion": "happy", "items": ["pacte"], "events": ["fin_alliance"] }, "choices": [] },
+    { "id": "ending_rogue", "node": "fin_alternative", "text": "Zylar : « Tu observes, tu apprends, tu repars. Ça me va. »", "vars": { "affinity": -2, "emotion": "neutral", "items": ["données_volées"], "events": ["fin_rogue"] }, "choices": [] },
+    { "id": "ending_observer", "node": "fin_mineure", "text": "Zylar : « Discret, patient. On se recroisera quand tu voudras parler. »", "vars": { "affinity": 1, "emotion": "neutral", "items": [], "events": ["fin_observateur"] }, "choices": [] },
+    { "id": "ending_guardian", "node": "fin_majeure", "text": "Zylar : « Serments simples, chemins clairs. Marchons. »", "vars": { "affinity": 3, "emotion": "happy", "items": ["clé_critique"], "events": ["fin_gardien"] }, "choices": [] },
+    { "id": "ending_ghost", "node": "fin_alternative", "text": "Zylar : « Solitaire, hein ? Alors sois une ombre rapide. »", "vars": { "affinity": 0, "emotion": "neutral", "items": [], "events": ["fin_fantome"] }, "choices": [] },
+    { "id": "ending_collapse", "node": "fin_cachee", "text": "Zylar : « Mauvais pari. On réparera une autre fois. »", "vars": { "affinity": -4, "emotion": "angry", "items": [], "events": ["fin_collapse"] }, "choices": [] }
+  ],
+  "templates": [
+    {
+      "prefix": "loopA",
+      "count": 2000,
+      "node": "ramification_auto",
+      "text": "Zylar : « Étape village {i}. On salue, on sourit, on soupçonne. Tu fais quoi ? »",
+      "vars": { "track": "A" },
+      "continue_label": "Réponse 1 : « Suivre Zylar. »",
+      "branch_label": "Réponse 2 : « Parler au marchand. »",
+      "exit_label": "Réponse 3 : « Revenir sur ses pas. »",
+      "branch_next": "resilience",
+      "end1": "ending_observer",
+      "end2": "ending_ghost"
+    },
+    {
+      "prefix": "loopB",
+      "count": 2000,
+      "node": "ramification_auto",
+      "text": "Zylar : « Étape forêt {i}. Ça craque, ça bruisse. Tu chuchotes ou tu fonces ? »",
+      "vars": { "track": "B" },
+      "continue_label": "Réponse 1 : « Chuchoter. »",
+      "branch_label": "Réponse 2 : « Foncer. »",
+      "exit_label": "Réponse 3 : « Reculer. »",
+      "branch_next": "deep_archives",
+      "end1": "ending_alliance",
+      "end2": "ending_collapse"
+    },
+    {
+      "prefix": "loopC",
+      "count": 1500,
+      "node": "ramification_auto",
+      "text": "Zylar : « Étape taverne {i}. On écoute, on rit, on ment un peu. La suite ? »",
+      "vars": { "track": "C" },
+      "continue_label": "Réponse 1 : « Écouter. »",
+      "branch_label": "Réponse 2 : « Intervenir. »",
+      "exit_label": "Réponse 3 : « Sortir. »",
+      "branch_next": "surface_analysis",
+      "end1": "ending_ghost",
+      "end2": "ending_observer"
+    },
+    {
+      "prefix": "loopD",
+      "count": 1500,
+      "node": "ramification_auto",
+      "text": "Zylar : « Étape pont {i}. On paye, on discute, on contourne ? »",
+      "vars": { "track": "D" },
+      "continue_label": "Réponse 1 : « Payer. »",
+      "branch_label": "Réponse 2 : « Discuter. »",
+      "exit_label": "Réponse 3 : « Contourner. »",
+      "branch_next": "resilience",
+      "end1": "ending_guardian",
+      "end2": "ending_collapse"
+    },
+    {
+      "prefix": "loopA2",
+      "count": 700,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU] Zylar : « Village {i}. Un clin d’œil, une pique, un pari. Tu suis ? »",
+      "vars": { "track": "A2", "new": true },
+      "continue_label": "Réponse 1 : « Je te suis, rapide. »",
+      "branch_label": "Réponse 2 : « Je négocie, finement. »",
+      "exit_label": "Réponse 3 : « Je passe mon tour. »",
+      "branch_next": "resilience",
+      "end1": "ending_alliance",
+      "end2": "ending_observer"
+    },
+    {
+      "prefix": "loopB2",
+      "count": 700,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU] Zylar : « Forêt {i}. Trois pas, un souffle court, une branche cède. On avance ? »",
+      "vars": { "track": "B2", "new": true },
+      "continue_label": "Réponse 1 : « Bas, discret. »",
+      "branch_label": "Réponse 2 : « Haut et vite. »",
+      "exit_label": "Réponse 3 : « Demi‑tour. »",
+      "branch_next": "deep_archives",
+      "end1": "ending_guardian",
+      "end2": "ending_collapse"
+    },
+    {
+      "prefix": "loopC2",
+      "count": 300,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU] Zylar : « Taverne {i}. Court : on trinque. Long : je raconte comment j’ai roulé un roi. »",
+      "vars": { "track": "C2", "new": true },
+      "continue_label": "Réponse 1 : « Raconte tout. »",
+      "branch_label": "Réponse 2 : « Coupe court. »",
+      "exit_label": "Réponse 3 : « Sors incognito. »",
+      "branch_next": "surface_analysis",
+      "end1": "ending_rogue",
+      "end2": "ending_observer"
+    },
+    {
+      "prefix": "loopD2",
+      "count": 300,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU] Zylar : « Pont {i}. Mot bref : passe. Monologue : le péager déteste l’ennui. Choisis. »",
+      "vars": { "track": "D2", "new": true },
+      "continue_label": "Réponse 1 : « Mot de passe. »",
+      "branch_label": "Réponse 2 : « Discours charmeur. »",
+      "exit_label": "Réponse 3 : « Contour. »",
+      "branch_next": "resilience",
+      "end1": "ending_alliance",
+      "end2": "ending_collapse"
+    },
+    {
+      "prefix": "loopM",
+      "count": 200,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU][MONOLOGUE] Zylar : « Battement {i}. Écoute : je parle trop quand je doute. Tu gardes le rythme ? »",
+      "vars": { "track": "M", "new": true },
+      "continue_label": "Réponse 1 : « Continue, j’apprends. »",
+      "branch_label": "Réponse 2 : « Abrège, on agit. »",
+      "exit_label": "Réponse 3 : « Silence. »",
+      "branch_next": "deep_archives",
+      "end1": "ending_guardian",
+      "end2": "ending_observer"
+    },
+    {
+      "prefix": "loopE2",
+      "count": 400,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU][COMIQUE] Zylar : « Place {i}. Court : vanne sèche. Long : je brode une histoire absurde. »",
+      "vars": { "track": "E2", "new": true, "tone": "comique" },
+      "continue_label": "Réponse 1 : « Balance la vanne. »",
+      "branch_label": "Réponse 2 : « Va pour l’absurde. »",
+      "exit_label": "Réponse 3 : « Sans moi. »",
+      "branch_next": "surface_analysis",
+      "end1": "ending_observer",
+      "end2": "ending_rogue"
+    },
+    {
+      "prefix": "loopT2",
+      "count": 300,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU][THRILLER] Zylar : « Fil {i}. Court : code, fuite. Long : je détaille qui nous traque. »",
+      "vars": { "track": "T2", "new": true, "tone": "thriller" },
+      "continue_label": "Réponse 1 : « Code. »",
+      "branch_label": "Réponse 2 : « Détails. »",
+      "exit_label": "Réponse 3 : « On coupe. »",
+      "branch_next": "deep_archives",
+      "end1": "ending_guardian",
+      "end2": "ending_collapse"
+    },
+    {
+      "prefix": "loopDR2",
+      "count": 50,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU][DRAME] Zylar : « Confession {i}. Court : je tiens. Long : je lâche tout, ça pèse. »",
+      "vars": { "track": "DR2", "new": true, "tone": "dramatique" },
+      "continue_label": "Réponse 1 : « Tiens bon. »",
+      "branch_label": "Réponse 2 : « Dis‑moi tout. »",
+      "exit_label": "Réponse 3 : « Plus tard. »",
+      "branch_next": "resilience",
+      "end1": "ending_alliance",
+      "end2": "ending_observer"
+    },
+    {
+      "prefix": "loopQ2",
+      "count": 50,
+      "node": "ramification_auto",
+      "text": "[NOUVEAU][ENJEU] Zylar : « Quête {i}. Court : objectif net. Long : pourquoi ça compte vraiment. »",
+      "vars": { "track": "Q2", "new": true, "tone": "stakes" },
+      "continue_label": "Réponse 1 : « Net et clair. »",
+      "branch_label": "Réponse 2 : « Contexte complet. »",
+      "exit_label": "Réponse 3 : « On diffère. »",
+      "branch_next": "surface_analysis",
+      "end1": "ending_guardian",
+      "end2": "ending_rogue"
+    }
+  ]
+}

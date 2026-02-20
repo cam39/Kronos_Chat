@@ -1,0 +1,44 @@
+
+/* Button Overrides */
+
+.btn-notifications {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-ui);
+    font-size: 18px;
+}
+
+.btn-notifications:hover {
+    background: var(--warning);
+    border-color: var(--warning);
+    color: var(--bg-primary);
+    transform: translate(-2px, -2px);
+    box-shadow: 0 0 15px rgba(255, 170, 0, 0.4);
+}
+
+.btn-notifications:active {
+    transform: translate(0, 0);
+}
+
+.btn-notifications.muted {
+    opacity: 0.5;
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+.btn-notifications.muted:hover {
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}

@@ -1,0 +1,155 @@
+{
+  "meta": { "lang": "fr", "pack": 1, "generated": "pipeline-sample" },
+  "scenes": [
+    {
+      "id": "fr_village_zylar_1",
+      "node": "village_1",
+      "speaker": "Zylar",
+      "text": "Village 1. Zylar : On salue, on sourit, on soupçonne. hein. Que fais‑tu, ${player_name} ?",
+      "subtitle": "Village 1. On salue, on soupçonne.",
+      "vars": { "emotion": "neutral", "quest_stage": 1, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -3, "requires_flag": null },
+      "duration_ms": 2200,
+      "tags": ["village", "zylar", "neutral"],
+      "choices": [
+        { "id": "fr_village_zylar_1_cont", "label": "Continuer", "next": "fr_village_zylar_2" },
+        { "id": "fr_village_zylar_1_branch", "label": "Explorer", "next": "fr_forest_zylar_2" }
+      ]
+    },
+    {
+      "id": "fr_forest_zylar_2",
+      "node": "forest_1",
+      "speaker": "Zylar",
+      "text": "Forêt 2. Zylar : Ça craque, ça bruisse. hein. Tu chuchotes ou tu fonces ?",
+      "subtitle": "Forêt 2. Ça craque, ça bruisse.",
+      "vars": { "emotion": "curious", "quest_stage": 1, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -2, "requires_flag": null },
+      "duration_ms": 2100,
+      "tags": ["forest", "zylar", "curious"],
+      "choices": [
+        { "id": "fr_forest_zylar_2_cont", "label": "Continuer", "next": "fr_tavern_barkeep_3" },
+        { "id": "fr_forest_zylar_2_branch", "label": "Explorer", "next": "fr_village_vendor_3" }
+      ]
+    },
+    {
+      "id": "fr_tavern_barkeep_3",
+      "node": "tavern_2",
+      "speaker": "Aubergiste",
+      "text": "Taverne 3. Aubergiste : On écoute, on rit, on ment un peu. client fidèle. La suite ?",
+      "subtitle": "Taverne 3. On écoute, on rit.",
+      "vars": { "emotion": "happy", "quest_stage": 2, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "fr_tavern_barkeep_3_cont", "label": "Continuer", "next": "fr_bridge_guard_4" },
+        { "id": "fr_tavern_barkeep_3_branch", "label": "Explorer", "next": "fr_village_vendor_4" }
+      ]
+    },
+    {
+      "id": "fr_bridge_guard_4",
+      "node": "bridge_2",
+      "speaker": "Garde",
+      "text": "Pont 4. Garde : On paye, on discute, on contourne ? halte",
+      "subtitle": "Pont 4. Payer ou contourner ?",
+      "vars": { "emotion": "neutral", "quest_stage": 2, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 0, "requires_flag": null },
+      "duration_ms": 1600,
+      "tags": ["bridge", "guard", "neutral"],
+      "choices": [
+        { "id": "fr_bridge_guard_4_cont", "label": "Continuer", "next": "fr_village_vendor_5" },
+        { "id": "fr_bridge_guard_4_branch", "label": "Explorer", "next": "fr_forest_zylar_5" }
+      ]
+    },
+    {
+      "id": "fr_village_vendor_5",
+      "node": "village_3",
+      "speaker": "Marchand",
+      "text": "Village 5. Marchand : On salue, on sourit, on soupçonne. prix d’ami. Que fais‑tu, ${player_name} ?",
+      "subtitle": "Village 5. On salue, on soupçonne.",
+      "vars": { "emotion": "doubt", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 2100,
+      "tags": ["village", "vendor", "doubt"],
+      "choices": [
+        { "id": "fr_village_vendor_5_cont", "label": "Continuer", "next": "fr_tavern_barkeep_6" },
+        { "id": "fr_village_vendor_5_branch", "label": "Explorer", "next": "fr_forest_zylar_6" }
+      ]
+    },
+    {
+      "id": "fr_tavern_barkeep_6",
+      "node": "tavern_3",
+      "speaker": "Aubergiste",
+      "text": "Taverne 6. Aubergiste : On écoute, on rit, on ment un peu. à la pression. La suite ?",
+      "subtitle": "Taverne 6. On écoute, on rit.",
+      "vars": { "emotion": "happy", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 1, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "fr_tavern_barkeep_6_cont", "label": "Continuer", "next": "fr_bridge_guard_7" },
+        { "id": "fr_tavern_barkeep_6_branch", "label": "Explorer", "next": "fr_village_vendor_7" }
+      ]
+    },
+    {
+      "id": "fr_bridge_guard_7",
+      "node": "bridge_3",
+      "speaker": "Garde",
+      "text": "Pont 7. Garde : On paye, on discute, on contourne ? règle",
+      "subtitle": "Pont 7. Payer ou contourner ?",
+      "vars": { "emotion": "neutral", "quest_stage": 3, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 0, "requires_flag": null },
+      "duration_ms": 1600,
+      "tags": ["bridge", "guard", "neutral"],
+      "choices": [
+        { "id": "fr_bridge_guard_7_cont", "label": "Continuer", "next": "fr_forest_zylar_8" },
+        { "id": "fr_bridge_guard_7_branch", "label": "Explorer", "next": "fr_village_vendor_8" }
+      ]
+    },
+    {
+      "id": "fr_forest_zylar_8",
+      "node": "forest_4",
+      "speaker": "Zylar",
+      "text": "Forêt 8. Zylar : Ça craque, ça bruisse. hmpf. Tu chuchotes ou tu fonces ?",
+      "subtitle": "Forêt 8. Ça craque, ça bruisse.",
+      "vars": { "emotion": "angry", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -1, "requires_flag": null },
+      "duration_ms": 2100,
+      "tags": ["forest", "zylar", "angry"],
+      "choices": [
+        { "id": "fr_forest_zylar_8_cont", "label": "Continuer", "next": "fr_village_zylar_9" },
+        { "id": "fr_forest_zylar_8_branch", "label": "Explorer", "next": "fr_tavern_barkeep_9" }
+      ]
+    },
+    {
+      "id": "fr_village_zylar_9",
+      "node": "village_4",
+      "speaker": "Zylar",
+      "text": "Village 9. Zylar : On salue, on sourit, on soupçonne. hein. Que fais‑tu, ${player_name} ?",
+      "subtitle": "Village 9. On salue, on soupçonne.",
+      "vars": { "emotion": "neutral", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": -3, "requires_flag": null },
+      "duration_ms": 2200,
+      "tags": ["village", "zylar", "neutral"],
+      "choices": [
+        { "id": "fr_village_zylar_9_cont", "label": "Continuer", "next": "fr_tavern_barkeep_10" },
+        { "id": "fr_village_zylar_9_branch", "label": "Explorer", "next": "fr_bridge_guard_10" }
+      ]
+    },
+    {
+      "id": "fr_tavern_barkeep_10",
+      "node": "tavern_4",
+      "speaker": "Aubergiste",
+      "text": "Taverne 10. Aubergiste : On écoute, on rit, on ment un peu. client fidèle. La suite ?",
+      "subtitle": "Taverne 10. On écoute, on rit.",
+      "vars": { "emotion": "happy", "quest_stage": 4, "world_state": "default", "items": [], "events": [] },
+      "conditions": { "min_affinity": 1, "requires_flag": null },
+      "duration_ms": 2000,
+      "tags": ["tavern", "barkeep", "happy"],
+      "choices": [
+        { "id": "fr_tavern_barkeep_10_cont", "label": "Continuer", "next": "ending_observer" },
+        { "id": "fr_tavern_barkeep_10_branch", "label": "Explorer", "next": "resilience" }
+      ]
+    }
+  ]
+}

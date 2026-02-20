@@ -1,0 +1,12 @@
+{
+  "lang": "en",
+  "packs": [
+    { "file": "packs/pack_001.json" }
+  ],
+  "total_lines": 10,
+  "universe": {
+    "name": "Kronos - Shadow Marches",
+    "era": "dark fantasy, pre‑industrial",
+    "register": "oral, brisk, concrete imagery, wry tone"
+  }
+}

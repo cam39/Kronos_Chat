@@ -1,0 +1,645 @@
+/*
+   KRONOS - Authentication Pages
+   Style Brutaliste / HUD Design
+*/
+
+/* ============================================
+   VARIABLES CSS (identiques au style principal)
+   ============================================ */
+:root {
+    --bg-primary: #09090b;
+    --bg-secondary: #18181b;
+    --bg-surface: #27272a;
+    --bg-hover: #3f3f46;
+    
+    --text-primary: #d4d4d8;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    
+    --accent: #ccff00;
+    --accent-dim: rgba(204, 255, 0, 0.1);
+    --accent-hover: #b3e600;
+    
+    --danger: #ff3333;
+    --danger-dim: rgba(255, 51, 51, 0.1);
+    
+    --border: #3f3f46;
+    --border-light: #52525b;
+    
+    --font-ui: 'JetBrains Mono', 'Space Grotesk', monospace;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    
+    --radius-md: 4px;
+    --radius-lg: 8px;
+    
+    --transition-fast: 0.1s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease;
+}
+
+/* ============================================
+   BASE
+   ============================================ */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ============================================
+   AUTH CONTAINER
+   ============================================ */
+.auth-container {
+    display: flex;
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Background Effects */
+.auth-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.grid-overlay {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background-image: 
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 50px 50px;
+    background-position: center center;
+    opacity: 0.1;
+    animation: gridMove 20s linear infinite;
+}
+
+@keyframes gridMove {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(25px, 25px); }
+}
+
+.auth-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(204, 255, 0, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+/* ============================================
+   AUTH CARD
+   ============================================ */
+.auth-card {
+    position: relative;
+    z-index: 1;
+    width: 420px;
+    height: 100vh;
+    padding: var(--space-2xl);
+    padding-top: calc(60px + var(--space-2xl));
+    padding-bottom: calc(60px + var(--space-2xl));
+    background: rgba(24, 24, 27, 0.95);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: var(--space-2xl);
+}
+
+.auth-logo {
+    margin-bottom: var(--space-lg);
+}
+
+.auth-logo svg {
+    filter: drop-shadow(0 0 20px rgba(204, 255, 0, 0.3));
+}
+
+.auth-header h1 {
+    font-family: var(--font-ui);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.auth-subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   AUTH FORM
+   ============================================ */
+.auth-form {
+    margin-bottom: var(--space-xl);
+}
+
+.form-group {
+    margin-bottom: var(--space-md);
+}
+
+.form-group label {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: var(--space-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.form-group input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Password Input */
+.password-input {
+    position: relative;
+}
+
+.password-input input {
+    padding-right: 48px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast);
+}
+
+.toggle-password:hover {
+    color: var(--text-primary);
+}
+
+/* Password Strength */
+.password-strength {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+}
+
+.strength-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--bg-primary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.strength-bar::after {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 0;
+    transition: all var(--transition-normal);
+}
+
+.password-strength.weak .strength-bar::after {
+    width: 33%;
+    background: var(--danger);
+}
+
+.password-strength.medium .strength-bar::after {
+    width: 66%;
+    background: var(--warning);
+}
+
+.password-strength.strong .strength-bar::after {
+    width: 100%;
+    background: var(--success);
+}
+
+.strength-text {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 50px;
+}
+
+.password-strength.weak .strength-text { color: var(--danger); }
+.password-strength.medium .strength-text { color: var(--warning); }
+.password-strength.strong .strength-text { color: var(--success); }
+
+/* Form Options */
+.form-options {
+    margin-bottom: var(--space-md);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.checkbox-label input {
+    display: none;
+}
+
+.checkmark {
+    width: 18px;
+    height: 18px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.checkmark svg {
+    width: 12px;
+    height: 12px;
+    color: var(--bg-primary);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all var(--transition-fast);
+}
+
+.checkbox-label input:checked + .checkmark {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.checkbox-label input:checked + .checkmark svg {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.checkbox-label a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--transition-fast);
+}
+
+.checkbox-label a:hover {
+    border-color: var(--accent);
+}
+
+/* Form Error */
+.form-error {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--danger-dim);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--danger);
+    margin-bottom: var(--space-md);
+}
+
+/* Submit Button */
+.btn-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: var(--space-md) var(--space-lg);
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bg-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-submit:hover {
+    background: var(--accent-hover);
+    box-shadow: var(--shadow-glow);
+}
+
+.btn-submit:active {
+    transform: scale(0.98);
+}
+
+.btn-submit svg {
+    transition: transform var(--transition-fast);
+}
+
+.btn-submit:hover svg {
+    transform: translateX(4px);
+}
+
+/* ============================================
+   AUTH FOOTER
+   ============================================ */
+.auth-footer {
+    text-align: center;
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border);
+}
+
+.auth-footer p {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.auth-footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--transition-fast);
+}
+
+.auth-footer a:hover {
+    border-color: var(--accent);
+}
+
+/* ============================================
+   AUTH INFO
+   ============================================ */
+.auth-info {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-lg);
+    margin-top: var(--space-xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border);
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.info-item svg {
+    color: var(--success);
+}
+
+/* ============================================
+   FEATURES SIDEBAR
+   ============================================ */
+.auth-features {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-2xl);
+    z-index: 1;
+    position: relative;
+}
+
+.auth-features h3 {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+}
+
+.auth-features ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.auth-features li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    font-size: 16px;
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+
+.auth-features li svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.auth-features li:hover {
+    color: var(--accent);
+    transform: translateX(8px);
+}
+
+.auth-features li:hover svg {
+    transform: scale(1.1);
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.btn-submit.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-submit.loading::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: var(--bg-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: var(--space-sm);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 1024px) {
+    .auth-container {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .auth-features {
+        display: none;
+    }
+    
+    .auth-card {
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        min-height: auto;
+        padding: var(--space-xl);
+        padding-top: calc(40px + var(--space-xl));
+        padding-bottom: calc(40px + var(--space-xl));
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-card {
+        padding: var(--space-lg);
+    }
+    
+    .auth-header h1 {
+        font-size: 24px;
+    }
+    
+    .auth-info {
+        flex-direction: column;
+        gap: var(--space-sm);
+        align-items: center;
+    }
+}
+
+/* ============================================
+   FOCUS STATES FOR ACCESSIBILITY
+   ============================================ */
+*:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+input:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ============================================
+   SCROLLBAR PERSONNALISÉE (Webkit)
+   ============================================ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-light);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* Scrollbar pour les éléments avec overflow */
+.auth-card::-webkit-scrollbar {
+    width: 6px;
+}
+
+.auth-card::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.auth-card::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.auth-card::-webkit-scrollbar-thumb:hover {
+    background: var(--border-light);
+}
+
+/* ============================================
+   SELECTION
+   ============================================ */
+::selection {
+    background: var(--accent);
+    color: var(--bg-primary);
+}

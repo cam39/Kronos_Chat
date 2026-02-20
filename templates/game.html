@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JEUX | KRONOS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/buttons.css">
+    <style>
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-image: radial-gradient(circle at 50% 50%, rgba(204, 255, 0, 0.02) 0%, transparent 100%);
+            flex-direction: column;
+        }
+        .top-bar {
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            padding: 15px 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .content-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            width: 100%;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            scroll-behavior: smooth;
+        }
+        .games-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+        @media (max-width: 960px) {
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.55);
+        }
+        .card-header-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        .card-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+        }
+        .games-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            gap: 16px;
+        }
+        .games-header-title {
+            font-size: 1.6rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+        .games-header-sub {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .pill-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .pill-steps span {
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 4px 10px;
+        }
+        .field-inline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .field-inline input {
+            flex: 0 0 120px;
+            text-transform: uppercase;
+        }
+        .games-list-wrapper {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .game-code-input {
+            max-width: 140px;
+            text-transform: uppercase;
+        }
+        .lobby-footer {
+            position: sticky;
+            bottom: 0;
+            padding-top: 16px;
+            margin-top: 32px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+        .lobby-footer-inner {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <a href="/" class="btn-secondary" style="width:auto; padding:var(--space-sm) var(--space-lg);">← Retour au chat</a>
+        <h1 style="margin-left:16px; font-size:1.1rem; letter-spacing:0.2em;">KRONOS / JEUX</h1>
+    </div>
+    <div class="content-wrapper">
+        <main class="main-content">
+            <div id="game-hub" class="scroll-area">
+                <div class="games-header">
+                    <div>
+                        <div class="games-header-title">SALLE DE JEUX</div>
+                        <div class="games-header-sub">Crée une partie privée ou rejoins une session en cours.</div>
+                    </div>
+                    <button id="btn-open-create-game" class="btn-primary">
+                        + Créer une partie
+                    </button>
+                </div>
+                <div class="games-grid">
+                    <section class="card">
+                        <div class="card-header-title">Créer une nouvelle partie</div>
+                        <div class="card-subtitle">
+                            Choisis le mode, invite un joueur si besoin, puis ouvre le lobby.
+                        </div>
+                        <div class="pill-steps">
+                            <span>1. Choisir le jeu</span>
+                            <span>2. Sélectionner le mode</span>
+                            <span>3. Inviter ou laisser public</span>
+                        </div>
+                        <button id="btn-open-create-game-secondary" class="btn-primary" style="margin-top:8px;">
+                            Ouvrir le panneau de création
+                        </button>
+                    </section>
+                    <section class="card">
+                        <div class="card-header-title">Rejoindre une partie par code</div>
+                        <div class="card-subtitle">
+                            Entre le code à 6 caractères partagé par un autre joueur.
+                        </div>
+                        <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:4px;">Code de partie</label>
+                        <div class="field-inline">
+                            <input id="join-game-code" type="text" maxlength="6" placeholder="XXXXXX" class="form-control game-code-input">
+                            <button id="btn-join-game-code" class="btn-secondary" style="width:auto;">Rejoindre</button>
+                        </div>
+                    </section>
+                </div>
+                <section style="margin-top:32px;">
+                    <div class="card">
+                        <div class="card-header-title">Parties en cours</div>
+                        <div class="card-subtitle">
+                            Sessions visibles auxquelles tu peux participer ou que tu peux observer.
+                        </div>
+                        <div id="games-empty" style="font-size:0.85rem; color:var(--text-muted);">
+                            Aucune partie disponible pour le moment.
+                        </div>
+                        <div id="games-list" class="games-list-wrapper"></div>
+                    </div>
+                </section>
+            </div>
+            <div id="game-lobby" class="scroll-area" style="display:none;">
+                <section>
+                    <h2 id="lobby-title" style="font-size:1.4rem; margin-bottom:4px;">Lobby</h2>
+                    <p id="lobby-subtitle" style="color:var(--text-muted); font-size:0.9rem; margin:0;"></p>
+                </section>
+                <section style="display:flex; flex-wrap:wrap; gap:32px; margin-top:24px;">
+                    <div style="flex:1; min-width:260px;">
+                        <h3 style="font-size:1.1rem; margin-bottom:8px;">Joueurs</h3>
+                        <div id="lobby-players" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
+                    <div style="flex:0 0 260px;">
+                        <h3 style="font-size:1.1rem; margin-bottom:8px;">Spectateurs</h3>
+                        <div id="lobby-spectators" style="display:flex; flex-direction:column; gap:4px; font-size:0.85rem; color:var(--text-muted);"></div>
+                    </div>
+                </section>
+                <div class="lobby-footer">
+                    <div class="lobby-footer-inner">
+                        <button id="btn-lobby-ready" class="btn-secondary" style="width:auto;">Se déclarer prêt</button>
+                        <button id="btn-lobby-spectate" class="btn-secondary" style="width:auto;">Passer en spectateur</button>
+                        <button id="btn-lobby-leave" class="btn-secondary" style="width:auto;">Quitter</button>
+                        <button id="btn-lobby-start" class="btn-primary" style="margin-left:auto; display:none; width:auto;">Lancer la partie</button>
+                        <button id="btn-lobby-rematch" class="btn-secondary" style="display:none; width:auto;">Recommencer</button>
+                    </div>
+                    <div id="lobby-status" style="font-size:0.85rem; color:var(--text-muted); margin-top:8px;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="game-create-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1200; align-items:center; justify-content:center;">
+        <div class="menu-content" style="max-width:520px; width:100%;">
+            <div class="menu-header">
+                <h3>Créer une partie</h3>
+                <button id="close-create-game" class="btn-secondary" style="width:auto; padding:4px 10px; font-size:18px; line-height:1;">×</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:4px;">Jeu</label>
+                    <select id="game-select" class="form-control" style="width:100%;">
+                        <option value="Battleship">Battleship</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:4px;">Mode</label>
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="btn-secondary game-mode-btn" data-mode="pve">Contre l'ordinateur</button>
+                        <button type="button" class="btn-secondary game-mode-btn" data-mode="pvp">Contre un autre joueur</button>
+                    </div>
+                </div>
+                <div id="invite-row" style="display:none; flex-direction:column; gap:6px;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Inviter un joueur</label>
+                    <input id="invite-username" type="text" placeholder="Pseudo du joueur invité" class="form-control">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                    <button id="cancel-create-game" class="btn-secondary">Annuler</button>
+                    <button id="confirm-create-game" class="btn-primary">Créer</button>
+                </div>
+                <div id="create-game-error" style="display:none; color:#ff5252; font-size:0.8rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/socket.io.min.js"></script>
+    <script>
+    (function() {
+        const path = window.location.pathname || '';
+        const isLobby = /^\/jeux\/[A-Za-z0-9]{6}$/.test(path);
+        const state = { mode: 'pve', isLobby, game: null, selfReady: false, readyInitialized: false, spectate: false, socket: null, code: null, startVisible: false };
+        const openBtn = document.getElementById('btn-open-create-game');
+        const openBtnSecondary = document.getElementById('btn-open-create-game-secondary');
+        const overlay = document.getElementById('game-create-overlay');
+        const closeBtn = document.getElementById('close-create-game');
+        const cancelBtn = document.getElementById('cancel-create-game');
+        const confirmBtn = document.getElementById('confirm-create-game');
+        const modeButtons = document.querySelectorAll('.game-mode-btn');
+        const inviteRow = document.getElementById('invite-row');
+        const inviteInput = document.getElementById('invite-username');
+        const errorBox = document.getElementById('create-game-error');
+        const gamesList = document.getElementById('games-list');
+        const gamesEmpty = document.getElementById('games-empty');
+        const joinCodeInput = document.getElementById('join-game-code');
+        const joinCodeBtn = document.getElementById('btn-join-game-code');
+        const hubRoot = document.getElementById('game-hub');
+        const lobbyRoot = document.getElementById('game-lobby');
+        const lobbyTitle = document.getElementById('lobby-title');
+        const lobbySubtitle = document.getElementById('lobby-subtitle');
+        const lobbyPlayers = document.getElementById('lobby-players');
+        const lobbySpectators = document.getElementById('lobby-spectators');
+        const lobbyStatus = document.getElementById('lobby-status');
+        const btnReady = document.getElementById('btn-lobby-ready');
+        const btnSpectate = document.getElementById('btn-lobby-spectate');
+        const btnLeave = document.getElementById('btn-lobby-leave');
+        const btnStart = document.getElementById('btn-lobby-start');
+        const btnRematch = document.getElementById('btn-lobby-rematch');
+
+        function openOverlay() { overlay.style.display = 'flex'; errorBox.style.display = 'none'; errorBox.textContent = ''; }
+        function closeOverlay() { overlay.style.display = 'none'; }
+
+        function showHub() {
+            if (!hubRoot || !lobbyRoot) return;
+            hubRoot.style.display = 'flex';
+            lobbyRoot.style.display = 'none';
+        }
+
+        function showLobby() {
+            if (!hubRoot || !lobbyRoot) return;
+            hubRoot.style.display = 'none';
+            lobbyRoot.style.display = 'flex';
+        }
+
+        if (!state.isLobby) {
+            if (openBtn) openBtn.addEventListener('click', openOverlay);
+            if (openBtnSecondary) openBtnSecondary.addEventListener('click', openOverlay);
+            if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
+            if (cancelBtn) cancelBtn.addEventListener('click', closeOverlay);
+        } else {
+            showLobby();
+        }
+
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.mode = btn.dataset.mode;
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                inviteRow.style.display = state.mode === 'pvp' ? 'flex' : 'none';
+            });
+        });
+        if (modeButtons[0]) modeButtons[0].click();
+
+        async function refreshGames() {
+            try {
+                const res = await fetch('/api/games');
+                if (!res.ok) throw new Error('Erreur de chargement');
+                const data = await res.json();
+                gamesList.innerHTML = '';
+                const games = data.games || [];
+                if (!games.length) {
+                    gamesEmpty.style.display = 'block';
+                    return;
+                }
+                gamesEmpty.style.display = 'none';
+                games.forEach(g => {
+                    const item = document.createElement('div');
+                    item.className = 'file-card';
+                    const statusLabel = g.status === 'in_progress' ? 'En cours' : 'En attente';
+                    const isPrivate = g.is_private ? 'Privée' : 'Publique';
+                    const players = (g.players || []).map(p => p.username).join(' vs ');
+                    item.innerHTML =
+                        '<div class="file-main">' +
+                        '<div class="file-meta">' +
+                        '<div class="file-name">Battleship</div>' +
+                        '<div class="file-details">Code ' + g.code + ' • ' + statusLabel + ' • ' + isPrivate + '</div>' +
+                        '<div class="file-details">Joueurs: ' + (players || '—') + '</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="file-actions">' +
+                        '<button class="btn-secondary btn-join">Rejoindre</button>' +
+                        (g.status === 'in_progress' ? '<button class="btn-secondary btn-spectate">Spectateur</button>' : '') +
+                        '</div>';
+                    item.querySelector('.btn-join').addEventListener('click', () => {
+                        window.location.href = '/jeux/' + g.code;
+                    });
+                    const specBtn = item.querySelector('.btn-spectate');
+                    if (specBtn) {
+                        specBtn.addEventListener('click', () => {
+                            window.location.href = '/jeux/' + g.code + '?spectate=1';
+                        });
+                    }
+                    gamesList.appendChild(item);
+                });
+            } catch (e) {
+                console.error('Erreur chargement parties', e);
+            }
+        }
+
+        async function handleCreate() {
+            const payload = {
+                game_name: document.getElementById('game-select').value,
+                mode: state.mode,
+                invited: inviteInput.value || null
+            };
+            try {
+                errorBox.style.display = 'none';
+                const res = await fetch('/api/games', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errorBox.textContent = data.error || 'Erreur lors de la création de la partie';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+                window.location.href = '/jeux/' + data.code;
+            } catch (e) {
+                errorBox.textContent = 'Erreur réseau';
+                errorBox.style.display = 'block';
+            }
+        }
+
+        if (!state.isLobby && confirmBtn) confirmBtn.addEventListener('click', handleCreate);
+
+        if (!state.isLobby && joinCodeBtn && joinCodeInput) {
+            joinCodeBtn.addEventListener('click', () => {
+                const raw = (joinCodeInput.value || '').trim().toUpperCase();
+                if (raw.length === 6) {
+                    window.location.href = '/jeux/' + raw;
+                }
+            });
+        }
+
+        function renderLobby(game) {
+            state.game = game;
+            state.code = game.code;
+            const playersArr = game.players || [];
+            if (!playersArr.length) {
+                window.location.href = '/game';
+                return;
+            }
+            let selfPlayer = null;
+            let readyCount = 0;
+            let totalHumans = playersArr.length;
+            playersArr.forEach(p => {
+                if (p.is_self) selfPlayer = p;
+                if (p.ready) readyCount += 1;
+            });
+            if (!state.readyInitialized) {
+                const isNewCreatorAlone = selfPlayer && selfPlayer.role === 'creator' && playersArr.length === 1 && game.status === 'waiting';
+                if (isNewCreatorAlone) {
+                    state.selfReady = false;
+                } else {
+                    state.selfReady = !!(selfPlayer && selfPlayer.ready);
+                }
+                state.readyInitialized = true;
+            } else {
+                state.selfReady = !!(selfPlayer && selfPlayer.ready);
+            }
+            if (btnReady) {
+                btnReady.textContent = state.selfReady ? 'Annuler prêt' : 'Se déclarer prêt';
+                btnReady.disabled = game.status !== 'waiting';
+            }
+            if (btnStart) {
+                const allReady = totalHumans > 0 && readyCount === totalHumans;
+                const isSelfCreator = !!(selfPlayer && selfPlayer.role === 'creator');
+                const showStart = game.status === 'waiting' && isSelfCreator && allReady;
+                if (state.startVisible !== showStart) {
+                    state.startVisible = showStart;
+                    btnStart.style.display = showStart ? 'inline-flex' : 'none';
+                    btnStart.disabled = !showStart;
+                }
+            }
+            if (btnRematch) {
+                btnRematch.style.display = game.status === 'finished' ? 'inline-flex' : 'none';
+            }
+            if (lobbyTitle) lobbyTitle.textContent = 'Lobby ' + (game.code || '');
+            if (lobbySubtitle) {
+                const statusLabel = game.status === 'in_progress' ? 'Partie en cours' : 'En attente';
+                lobbySubtitle.textContent = 'Battleship • ' + statusLabel + (game.is_private ? ' • Partie privée' : ' • Partie publique');
+            }
+            if (lobbyPlayers) {
+                lobbyPlayers.innerHTML = '';
+                (game.players || []).forEach(p => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.alignItems = 'center';
+                    row.style.justifyContent = 'space-between';
+                    const name = document.createElement('div');
+                    name.textContent = p.username + (p.is_self ? ' (vous)' : '');
+                    const badge = document.createElement('span');
+                    badge.style.fontSize = '0.8rem';
+                    badge.style.padding = '3px 8px';
+                    badge.style.borderRadius = '999px';
+                    if (p.ready) {
+                        badge.textContent = 'PRÊT';
+                        badge.style.background = 'rgba(76, 175, 80, 0.1)';
+                        badge.style.color = '#4caf50';
+                    } else {
+                        badge.textContent = 'EN ATTENTE';
+                        badge.style.background = 'rgba(255, 193, 7, 0.05)';
+                        badge.style.color = '#ffc107';
+                    }
+                    row.appendChild(name);
+                    row.appendChild(badge);
+                    lobbyPlayers.appendChild(row);
+                });
+            }
+            if (lobbySpectators) {
+                lobbySpectators.innerHTML = '';
+                (game.spectators || []).forEach(s => {
+                    const row = document.createElement('div');
+                    row.textContent = s.username;
+                    lobbySpectators.appendChild(row);
+                });
+            }
+            if (lobbyStatus) {
+                if (game.status === 'in_progress') {
+                    lobbyStatus.textContent = 'Partie en cours';
+                } else if (game.status === 'finished') {
+                    lobbyStatus.textContent = 'Partie terminée. Tu peux proposer un rematch.';
+                } else {
+                    lobbyStatus.textContent = readyCount + ' joueur(s) prêts sur ' + totalHumans;
+                }
+            }
+        }
+
+        function initSocketLobby() {
+            if (!state.isLobby || !window.io) return;
+            state.code = path.split('/').pop().toUpperCase();
+            state.socket = io({
+                transports: ['polling', 'websocket'],
+                reconnection: true
+            });
+            state.socket.on('connect', () => {
+                state.socket.emit('game_join', { code: state.code, spectator: state.spectate || false });
+            });
+            state.socket.on('game_joined', (payload) => {
+                if (payload && payload.game) {
+                    showLobby();
+                    renderLobby(payload.game);
+                }
+            });
+            state.socket.on('game_update', (payload) => {
+                if (payload && payload.game) {
+                    renderLobby(payload.game);
+                }
+            });
+            state.socket.on('game_started', () => {
+                if (state.code) {
+                    window.location.href = '/jeux/' + state.code + '/battleship?code=' + encodeURIComponent(state.code);
+                }
+            });
+            state.socket.on('game_closed', (payload) => {
+                if (payload && payload.reason === 'no_players') {
+                    window.location.href = '/game';
+                }
+            });
+            state.socket.on('game_rematch_request', () => {
+                const accept = window.confirm('L’autre joueur demande un rematch. Accepter ?');
+                if (state.socket && state.code) {
+                    state.socket.emit('game_answer_rematch', { code: state.code, accept: !!accept });
+                }
+            });
+            state.socket.on('game_rematch_result', (payload) => {
+                if (!payload) return;
+                if (!payload.accepted && lobbyStatus) {
+                    lobbyStatus.textContent = 'Rematch refusé';
+                } else if (payload.accepted && lobbyStatus) {
+                    lobbyStatus.textContent = 'Rematch accepté, en attente des prêts';
+                }
+            });
+        }
+
+        if (state.isLobby) {
+            initSocketLobby();
+        } else {
+            refreshGames();
+            setInterval(refreshGames, 8000);
+        }
+
+        if (btnReady) {
+            btnReady.addEventListener('click', () => {
+                if (!state.socket || !state.code) return;
+                state.selfReady = !state.selfReady;
+                state.socket.emit('game_set_ready', { code: state.code, ready: state.selfReady });
+            });
+        }
+        if (btnStart) {
+            btnStart.addEventListener('click', () => {
+                if (!state.socket || !state.code) return;
+                state.socket.emit('game_start', { code: state.code });
+                window.location.href = '/jeux/' + state.code + '/battleship?code=' + encodeURIComponent(state.code);
+            });
+        }
+        if (btnSpectate) {
+            btnSpectate.addEventListener('click', () => {
+                if (!state.socket || !state.code) return;
+                state.spectate = !state.spectate;
+                window.location.href = '/jeux/' + state.code + '?spectate=1';
+            });
+        }
+        if (btnLeave) {
+            btnLeave.addEventListener('click', () => {
+                window.location.href = '/game';
+            });
+        }
+        if (btnRematch) {
+            btnRematch.addEventListener('click', () => {
+                if (!state.socket || !state.code) return;
+                state.socket.emit('game_request_rematch', { code: state.code });
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

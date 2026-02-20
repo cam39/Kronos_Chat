@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACCÈS RESTREINT | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        :root {
+            --accent: #ccff00;
+            --bg-dark: #09090b;
+            --text-main: #d4d4d8;
+            --bubble-bg: #0f0f12;
+            --bubble-border: #2a2a32;
+            --shadow: rgba(0,0,0,0.3);
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .guest-container {
+            position: relative;
+            z-index: 10;
+            max-width: 980px;
+            width: 90%;
+            background: rgba(24, 24, 27, 0.85);
+            border: 2px solid var(--accent);
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(204, 255, 0, 0.08), 0 10px 30px var(--shadow);
+            backdrop-filter: blur(10px);
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        .character-figure {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #121216;
+            border: 1px solid #2a2a32;
+            height: 420px;
+            overflow: hidden;
+        }
+
+        .kronos-body {
+            position: relative;
+            width: 220px;
+            height: 360px;
+            transform-origin: bottom center;
+            animation: idle 3s ease-in-out infinite;
+            will-change: transform;
+            transform: translateZ(0);
+            filter: drop-shadow(0 10px 20px var(--shadow));
+        }
+        .kronos-head {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(180deg, #17171c, #0f0f14);
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            margin: 0 auto;
+            position: relative;
+            box-shadow: inset 0 0 30px rgba(204,255,0,0.08);
+        }
+        .kronos-eye {
+            width: 60px;
+            height: 20px;
+            background: #1a1a22;
+            border: 2px solid #3a3a44;
+            border-radius: 12px;
+            position: absolute;
+            left: 50%; top: 56%;
+            transform: translate(-50%, -50%);
+            overflow: hidden;
+        }
+        .kronos-iris {
+            width: 18px; height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            position: absolute;
+            left: 4px; top: 1px;
+            box-shadow: 0 0 12px rgba(204,255,0,0.7);
+            animation: scan 2.6s ease-in-out infinite;
+        }
+        .kronos-torso {
+            width: 200px;
+            height: 170px;
+            margin: 12px auto 0;
+            background: linear-gradient(180deg, #141419, #0d0d12);
+            border: 2px solid #2a2a32;
+            border-radius: 16px;
+            position: relative;
+        }
+        .kronos-core {
+            position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            width: 72px; height: 72px;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            box-shadow: inset 0 0 24px rgba(204,255,0,0.2);
+            animation: pulse 2s infinite;
+        }
+        .kronos-arm { position: absolute; top: 40px; width: 18px; height: 120px; background: #14141a; border: 2px solid #2a2a32; }
+        .kronos-arm.left { left: -18px; transform-origin: top right; animation: sway 3s ease-in-out infinite; }
+        .kronos-arm.right { right: -18px; transform-origin: top left; animation: sway 3s ease-in-out infinite reverse; }
+        .kronos-leg { position: absolute; bottom: -14px; width: 24px; height: 110px; background: #14141a; border: 2px solid #2a2a32; border-radius: 8px; }
+        .kronos-leg.left { left: 48px; }
+        .kronos-leg.right { right: 48px; }
+
+        .ui-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 420px;
+        }
+        .bubble {
+            background: var(--bubble-bg);
+            border: 1px solid var(--bubble-border);
+            padding: 14px 16px;
+            border-radius: 10px;
+            box-shadow: 0 10px 24px var(--shadow);
+            line-height: 1.6;
+            position: relative;
+            animation: fadeIn 220ms ease-out;
+            transition: transform 200ms ease-out, opacity 200ms ease-out;
+        }
+        .bubble::after {
+            content: '';
+            position: absolute;
+            left: -6px; top: 12px;
+            width: 0; height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-right: 6px solid var(--bubble-bg);
+            filter: drop-shadow(-1px 0 0 var(--bubble-border));
+        }
+        .choices {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(204, 255, 0, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(204, 255, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(204, 255, 0, 0); }
+        }
+        @keyframes idle {
+            0% { transform: translateY(0) }
+            50% { transform: translateY(-6px) }
+            100% { transform: translateY(0) }
+        }
+        @keyframes scan {
+            0% { left: 4px }
+            50% { left: 38px }
+            100% { left: 4px }
+        }
+        @keyframes sway {
+            0% { transform: rotate(3deg) }
+            50% { transform: rotate(-4deg) }
+            100% { transform: rotate(3deg) }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .dialogue-text {
+            font-size: 1rem;
+            color: var(--text-main);
+        }
+        .dialogue-text strong { color: var(--accent); }
+        .meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 6px;
+        }
+
+        .btn-guest {
+            padding: 12px 30px;
+            border: 1px solid var(--accent);
+            background: transparent;
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 200ms ease-out, color 200ms ease-out, transform 200ms ease-out;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .btn-guest:hover {
+            background: var(--accent);
+            color: var(--bg-dark);
+            transform: translateY(-2px);
+        }
+
+        #matrix-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            opacity: 0.15;
+        }
+
+        .easter-egg {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 5px;
+            height: 5px;
+            cursor: pointer;
+            opacity: 0.1;
+        }
+
+        .easter-egg:hover { opacity: 1; color: var(--accent); }
+
+        @media (max-width: 800px) {
+            .guest-container { grid-template-columns: 1fr; height: 90vh; }
+            .character-figure { height: 300px; }
+            .choices { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .kronos-body { animation: none; }
+            .kronos-iris { animation: none; }
+            .kronos-arm.left, .kronos-arm.right { animation: none; }
+        }
+    </style>
+</head>
+<body>
+    {% if not is_authenticated %}
+    <div class="guest-container" role="region" aria-label="Accès invité">
+        <div class="dialogue-text bubble" aria-live="polite">Accès restreint. Connectez-vous pour entrer.</div>
+    </div>
+    {% else %}
+    <canvas id="matrix-bg"></canvas>
+    <div class="guest-container" role="region" aria-label="Expérience interactive">
+        <div class="character-figure" aria-hidden="true">
+            <div class="kronos-body" id="kronos-body">
+                <div class="kronos-head">
+                    <div class="kronos-eye"><div class="kronos-iris"></div></div>
+                </div>
+                <div class="kronos-torso">
+                    <div class="kronos-core" id="kronos-core"></div>
+                    <div class="kronos-arm left"></div>
+                    <div class="kronos-arm right"></div>
+                    <div class="kronos-leg left"></div>
+                    <div class="kronos-leg right"></div>
+                </div>
+            </div>
+        </div>
+        <div class="ui-panel">
+            <div class="bubble">
+                <div class="dialogue-text" id="story-text" aria-live="assertive"></div>
+                <div class="meta" id="story-meta"></div>
+            </div>
+            <div class="choices" id="choices" role="group" aria-label="Choix"></div>
+            <div style="margin-top:6px; display:flex; justify-content:flex-end; gap:12px;">
+            <button class="btn-guest" id="toggle-sound" aria-pressed="false">Son: OFF</button>
+            <button class="btn-guest" id="reset-session">Recommencer</button>
+        </div>
+        </div>
+    </div>
+    <script src="/static/js/guest.js"></script>
+    {% endif %}
+</body>
+</html>
