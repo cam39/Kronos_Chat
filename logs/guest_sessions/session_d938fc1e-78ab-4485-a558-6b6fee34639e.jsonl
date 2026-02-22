@@ -1,0 +1,50 @@
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:16:59.156555+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T15:17:23.310519+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt"], "ts": "2026-02-14T15:17:32.386797+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt"], "ts": "2026-02-14T15:17:34.667956+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.007757+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.130134+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.168721+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.276935+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.457730+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:38.607668+00:00"}
+{"affinity": 1, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt", "doubt"], "ts": "2026-02-14T15:17:39.295442+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:28:36.067801+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:35:34.496930+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy"], "ts": "2026-02-14T15:35:47.785042+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy", "stress_test"], "ts": "2026-02-14T15:35:58.050385+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy", "stress_test", "resilience"], "ts": "2026-02-14T15:36:03.880341+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:46:49.639871+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T15:47:01.738732+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:51:28.162834+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T15:51:32.191248+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust"], "ts": "2026-02-14T15:51:33.928154+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "deep_archives"], "ts": "2026-02-14T15:51:39.533780+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T15:57:59.971166+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T15:58:05.502664+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust"], "ts": "2026-02-14T15:58:08.572653+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis"], "ts": "2026-02-14T15:58:11.949377+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T16:08:36.021187+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T16:08:38.964743+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust"], "ts": "2026-02-14T16:08:42.834603+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis"], "ts": "2026-02-14T16:08:48.612296+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis", "deep_archives"], "ts": "2026-02-14T16:08:53.067141+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis", "deep_archives", "ending_alliance"], "ts": "2026-02-14T16:08:56.675931+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T16:09:00.064942+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": [], "ts": "2026-02-14T16:09:00.048735+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy"], "ts": "2026-02-14T16:09:01.818843+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy", "mock"], "ts": "2026-02-14T16:09:03.426823+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy", "mock", "rage_path"], "ts": "2026-02-14T16:09:05.435745+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "defy", "mock", "rage_path", "resilience"], "ts": "2026-02-14T16:09:06.699806+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T16:09:06.926380+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": [], "ts": "2026-02-14T16:09:06.933935+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T16:09:08.790754+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt"], "ts": "2026-02-14T16:09:10.255246+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "deep_archives"], "ts": "2026-02-14T16:09:11.710203+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "doubt", "deep_archives", "ending_rogue"], "ts": "2026-02-14T16:09:13.368645+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T16:49:19.135680+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe"], "ts": "2026-02-14T16:49:25.460547+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust"], "ts": "2026-02-14T16:49:28.310513+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis"], "ts": "2026-02-14T16:49:30.365525+00:00"}
+{"affinity": 0, "mood": "curious", "inventory": [], "flags": {}, "history": ["intro", "observe", "trust", "surface_analysis", "ending_observer"], "ts": "2026-02-14T16:49:32.066838+00:00"}
+{"affinity": 0, "mood": "neutral", "inventory": [], "flags": {}, "history": ["intro"], "ts": "2026-02-14T17:14:10.285207+00:00"}

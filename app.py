@@ -15,6 +15,8 @@ from flask import Flask, render_template, request, jsonify, send_from_directory,
 from flask_cors import CORS
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
+from flask_compress import Compress
+import psutil
 import random
 import pathlib
 from collections import deque
@@ -469,6 +471,9 @@ class NicknameValidator:
 # INITIALISATION APPLICATION
 # ============================================
 app = Flask(__name__, template_folder='templates', static_folder='static')
+Compress(app)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 2592000 # 30 jours
+online_users = set()
 app.config.from_object('config')
 app.config.setdefault('UPLOAD_FOLDER', str(UPLOADS_DIR))
 
@@ -945,7 +950,7 @@ if not os.environ.get('KRONOS_SKIP_DB_VERIFY'):
                 print("[DB] Base restaurée automatiquement depuis le dernier backup de démarrage.")
             raise
 
-socketio = SocketIO(app, async_mode=SOCKETIO_ASYNC_MODE, cors_allowed_origins="*", ping_timeout=10, ping_interval=5)
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*", ping_timeout=10, ping_interval=5, logger=False, engineio_logger=False)
 
 if EMAIL_QUEUE_ENABLED:
     email_thread = threading.Thread(target=email_worker, daemon=True)
@@ -956,7 +961,8 @@ if EMAIL_QUEUE_ENABLED:
 # ============================================
 def broadcast_channel_activity(channel_id):
     try:
-        socketio.emit('channel_activity', {'channel_id': str(channel_id)}, broadcast=True)
+        # Envoi à tous les clients connectés (broadcast par défaut avec socketio.emit)
+        socketio.emit('channel_activity', {'channel_id': str(channel_id)})
     except Exception as e:
         print(f"[SocketIO] channel_activity emit error: {e}")
 def get_client_ip():
@@ -2731,6 +2737,7 @@ def handle_connect(auth=None):
     # Enregistrer l'IP de connexion
     current_user.last_ip = ip
     current_user.last_seen = datetime.now(timezone.utc)
+    online_users.add(current_user.id)
     db.session.commit()
     
     # =================================================================
@@ -2914,9 +2921,75 @@ def handle_status_change(data):
         'status': new_status
     }, broadcast=True)
 
+# ============================================
+# STATS TEMPS RÉEL (OPTIMISATION)
+# ============================================
+admin_stats_sessions = set()
+stats_thread = None
+stats_thread_lock = threading.Lock()
+
+def background_stats_task():
+    """Tâche de fond pour les stats - ne tourne que si nécessaire"""
+    global stats_thread
+    print("[STATS] Démarrage du monitoring CPU/RAM")
+    process = psutil.Process()
+    # Premier appel pour initialiser les compteurs psutil
+    process.cpu_percent()
+    psutil.cpu_percent()
+    
+    while True:
+        with stats_thread_lock:
+            if not admin_stats_sessions:
+                print("[STATS] Arrêt du monitoring (plus d'observateurs)")
+                stats_thread = None
+                return
+        
+        socketio.sleep(2)
+        
+        try:
+            # interval=None car on a déjà attendu avec sleep
+            cpu_global = psutil.cpu_percent(interval=None)
+            cpu_process = process.cpu_percent(interval=None)
+            
+            # RAM en MB (RSS)
+            ram_info = process.memory_info()
+            ram_mb = ram_info.rss / (1024 * 1024)
+            
+            socketio.emit('stats_update', {
+                'cpu_global': cpu_global,
+                'cpu_process': cpu_process, 
+                'ram': ram_mb,
+                'online_count': len(online_users),
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }, room='admin_stats')
+        except Exception as e:
+            print(f"[STATS] Erreur: {e}")
+
+@socketio.on('join_stats')
+def on_join_stats():
+    if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_supreme):
+        return
+    
+    join_room('admin_stats')
+    with stats_thread_lock:
+        if not admin_stats_sessions:
+            global stats_thread
+            stats_thread = socketio.start_background_task(background_stats_task)
+        admin_stats_sessions.add(request.sid)
+
+@socketio.on('leave_stats')
+def on_leave_stats():
+    leave_room('admin_stats')
+    with stats_thread_lock:
+        admin_stats_sessions.discard(request.sid)
+
 @socketio.on('disconnect')
 def handle_disconnect():
     """Déconnexion WebSocket"""
+    # Gestion Stats : Retirer l'utilisateur des stats s'il part
+    with stats_thread_lock:
+        admin_stats_sessions.discard(request.sid)
+
     # Retirer le socket des abonnés aux mises à jour de fichiers - OBSOLÈTE
     # file_updates_subscribers.discard(request.sid)
     
@@ -2928,6 +3001,7 @@ def handle_disconnect():
         
         # Supprimer la présence
         db.session.delete(presence)
+        online_users.discard(user_id)
         db.session.commit()
         
         # Émettre la déconnexion à tous
@@ -4761,7 +4835,9 @@ def logs_page():
     action_types = db.session.query(AuditLog.action_type).distinct().all()
     action_types = [a[0] for a in action_types]
     
-    return render_template('logs.html', pagination=pagination, action_types=action_types, theme=THEME)
+    censure_logs = CensureLog.query.order_by(CensureLog.censored_at.desc()).all()
+    
+    return render_template('logs.html', pagination=pagination, action_types=action_types, theme=THEME, censure_logs=censure_logs)
 
 @app.route('/membre')
 @guest_allowed
@@ -5096,32 +5172,117 @@ def init_db():
         print(f"  Avertissement: Erreur lors de l'initialisation de la base de données: {e}")
 
 # ============================================
+# PAGE STATISTIQUES (ADMIN)
+# ============================================
+@app.route('/stats')
+def stats_page():
+    if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_supreme):
+        return render_template('404.html'), 404
+    return render_template('stats.html', theme=THEME)
+
+@app.route('/api/stats/live')
+def stats_live():
+    if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_supreme):
+        return jsonify({}), 404
+    
+    cpu_percent = psutil.cpu_percent()
+    ram_percent = psutil.virtual_memory().percent
+    
+    return jsonify({
+        'online_count': len(online_users),
+        'cpu': cpu_percent,
+        'ram': ram_percent,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    })
+
+# ============================================
+# MODÉRATION PROFIL (CENSURE)
+# ============================================
+@app.route('/api/admin/censure/<field>/<user_id>', methods=['POST'])
+@admin_required
+def censure_user_field(field, user_id):
+    if field not in ['bio', 'photo']:
+        return jsonify({'error': 'Champ invalide'}), 400
+        
+    target_user = db.session.get(User, user_id)
+    if not target_user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+        
+    if target_user.is_supreme:
+         return jsonify({'error': 'Impossible de censurer l\'Admin Suprême'}), 403
+    if target_user.is_admin and not current_user.is_supreme:
+         return jsonify({'error': 'Seul l\'Admin Suprême peut censurer un admin'}), 403
+
+    original_content = None
+    if field == 'bio':
+        original_content = target_user.bio
+        target_user.bio = "[CENSURÉ PAR L'ADMINISTRATION]"
+    elif field == 'photo':
+        original_content = target_user.avatar_filename
+        target_user.avatar_filename = None 
+        
+    log_entry = CensureLog(
+        admin_id=current_user.id,
+        user_id=target_user.id,
+        field=field,
+        original_content=original_content
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    socketio.emit('profile_update', {'user_id': target_user.id}, room=f"user_{target_user.id}")
+    
+    return jsonify({'message': f'{field} censuré avec succès'})
+
+@app.route('/api/admin/restore/<censure_id>', methods=['POST'])
+@admin_required
+def restore_censure(censure_id):
+    log_entry = db.session.get(CensureLog, censure_id)
+    if not log_entry:
+        return jsonify({'error': 'Entrée de censure non trouvée'}), 404
+        
+    target_user = db.session.get(User, log_entry.user_id)
+    if not target_user:
+         return jsonify({'error': 'Utilisateur cible introuvable'}), 404
+
+    if log_entry.field == 'bio':
+        target_user.bio = log_entry.original_content
+    elif log_entry.field == 'photo':
+        target_user.avatar_filename = log_entry.original_content
+        
+    db.session.delete(log_entry)
+    db.session.commit()
+    
+    return jsonify({'message': 'Contenu restauré'})
+
+# ============================================
 # POINT D'ENTRÉE
 # ============================================
 if __name__ == '__main__':
-    # S'assurer que le répertoire data existe (important pour disque externe)
+    # Conservation de la logique de tes dossiers
     import os
+    import eventlet
+    import eventlet.wsgi
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
     except PermissionError:
         print(f"  Avertissement: Impossible de créer {DATA_DIR}. Utilisation du dossier courant.")
-        # Utiliser un dossier alternatif dans le répertoire courant
-        import sys
+        from pathlib import Path
         DATA_DIR = Path.cwd() / 'data'
         DATA_DIR.mkdir(parents=True, exist_ok=True)
     
     init_db()
     
+    # On lance aussi ton serveur SMTP en arrière-plan comme avant
+    if 'start_smtp_server' in globals():
+        start_smtp_server()
+    
     print("=" * 60)
-    print("  KRONOS - Système de Communication Souverain")
+    print("  KRONOS - MODE FLASK OPTIMISÉ (STABLE)")
     print("=" * 60)
-    print(f"  Base de données: {DB_PATH}")
-    print(f"  Dossier uploads: {UPLOADS_DIR}")
-    print("=" * 60)
-    print("  Accédez à: http://localhost:5000")
+    print(f"  Accédez à: http://localhost:5000")
     print("=" * 60)
     
-    socketio.run(app, 
-                 host='0.0.0.0', 
-                 port=5000, 
-                 debug=DEBUG)
+    # Lancement natif avec SocketIO + Multi-thread activé
+    # threaded=True permet de gérer plusieurs personnes en même temps sans bloquer
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

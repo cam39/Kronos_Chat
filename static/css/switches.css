@@ -61,3 +61,16 @@ input:focus + .slider {
     cursor: pointer;
     margin-bottom: 0; /* Override default if any */
 }
+
+
+/* MOBILE SWITCHES */
+@media (max-width: 768px) {
+    .switch, .toggle-switch {
+        transform: scale(1.2); /* Larger target */
+        margin: 10px 0;
+    }
+    .switch-label {
+        font-size: 16px !important;
+        padding-left: 10px;
+    }
+}

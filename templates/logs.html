@@ -199,6 +199,9 @@
 
                 <button type="submit" class="btn-apply">APPLIQUER LES FILTRES</button>
                 <a href="/log" class="btn-reset">RÉINITIALISER</a>
+                <hr style="border-color: var(--border); margin: 20px 0;">
+                <button type="button" onclick="toggleLogs('audit')" class="btn-reset" style="color: var(--accent); border-color: var(--accent); margin-bottom: 10px;">AUDIT LOGS</button>
+                <button type="button" onclick="toggleLogs('censure')" class="btn-reset" style="color: #ff4444; border-color: #ff4444;">CENSURE LOGS</button>
             </form>
         </aside>
 
@@ -208,7 +211,7 @@
                 <a href="/" style="color: var(--accent); text-decoration: none; font-size: 0.9rem;">← RETOUR SYSTÈME</a>
             </header>
 
-            <div class="table-container">
+            <div class="table-container" id="audit-logs">
                 <table>
                     <thead>
                         <tr>
@@ -232,6 +235,68 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="table-container" id="censure-logs" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>DATE</th>
+                            <th>ADMIN</th>
+                            <th>UTILISATEUR CENSURÉ</th>
+                            <th>CHAMP</th>
+                            <th>CONTENU ORIGINAL</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in censure_logs %}
+                        <tr>
+                            <td style="white-space: nowrap; color: var(--text-muted);">{{ log.censored_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td style="color: var(--accent);">@{{ log.admin.username }}</td>
+                            <td style="color: var(--text-primary);">@{{ log.user.username }}</td>
+                            <td style="text-transform: uppercase;">{{ log.field }}</td>
+                            <td style="font-style: italic; color: var(--text-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{{ log.original_content }}</td>
+                            <td>
+                                <button onclick="restoreCensure('{{ log.id }}')" style="background: var(--accent); color: var(--bg-primary); border: none; padding: 5px 10px; cursor: pointer; font-size: 0.8rem;">RESTAURER</button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Aucune censure enregistrée.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+            function toggleLogs(type) {
+                if(type === 'audit') {
+                    document.getElementById('audit-logs').style.display = 'block';
+                    document.getElementById('censure-logs').style.display = 'none';
+                } else {
+                    document.getElementById('audit-logs').style.display = 'none';
+                    document.getElementById('censure-logs').style.display = 'block';
+                }
+            }
+
+            function restoreCensure(logId) {
+                if(!confirm('Voulez-vous vraiment restaurer ce contenu ?')) return;
+                fetch(`/api/admin/restore/${logId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.error) alert(data.error);
+                    else {
+                        alert(data.message);
+                        location.reload();
+                    }
+                })
+                .catch(err => alert('Erreur: ' + err));
+            }
+            </script>
 
             <div class="pagination">
                 {% if pagination.has_prev %}

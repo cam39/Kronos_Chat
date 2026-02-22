@@ -1096,6 +1096,11 @@ body {
                 messageHighlight 2s ease-out forwards;
 }
 
+/* Message mis en évidence (lors d'un scroll vers réponse) */
+.highlight-message {
+    animation: messageHighlight 2s ease-out forwards;
+}
+
 @keyframes messageHighlight {
     0% {
         background: rgba(204, 255, 0, 0.1);
@@ -1328,14 +1333,116 @@ body.flash-mention {
 
 .message-reply {
     display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--bg-hover);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.05);
     border-left: 3px solid var(--accent);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    margin-bottom: var(--space-xs);
-    font-size: 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-sm);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    user-select: none;
+    max-width: 100%;
+}
+
+.own .message-reply {
+    background: rgba(0, 0, 0, 0.1);
+    border-left-color: rgba(255, 255, 255, 0.5);
+}
+
+.message-reply:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.own .message-reply:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.reply-author {
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.8rem;
+}
+
+.own .reply-author {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.reply-text {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    font-style: italic;
+}
+
+.own .reply-text {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.reply-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    user-select: none;
+}
+
+.reply-indicator:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.reply-indicator svg {
+    width: 12px;
+    height: 12px;
+    transform: scaleX(-1);
+    border-top: 2px solid var(--border);
+    border-left: 2px solid var(--border);
+    border-top-left-radius: 6px;
+    width: 20px;
+    height: 10px;
+    margin-top: 6px;
+    border-bottom: none;
+    border-right: none;
+}
+/* Style alternatif plus simple pour l'icone */
+.reply-indicator svg {
+    display: none; /* On remplace par un pseudo-element plus propre style Discord */
+}
+
+.reply-indicator::before {
+    content: '';
+    display: block;
+    width: 30px;
+    height: 12px;
+    border-top: 2px solid var(--border);
+    border-left: 2px solid var(--border);
+    border-top-left-radius: 6px;
+    margin-right: 4px;
+    margin-top: 6px;
+    margin-left: -35px; /* Décalage vers la gauche pour s'aligner avec l'avatar si possible, sinon ajuster */
+    opacity: 0.5;
+}
+
+.reply-original {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.reply-original:hover {
+    text-decoration: underline;
 }
 
 .reply-author {
@@ -1939,6 +2046,7 @@ body.flash-mention {
     transition: outline 0.2s ease;
 }
 
+.message-actions-bar .action-btn-reply,
 .message-actions-bar .action-btn-edit,
 .message-actions-bar .action-btn-delete,
 .message-actions-bar .action-btn-pin,
@@ -1954,6 +2062,11 @@ body.flash-mention {
     color: var(--text-muted);
     cursor: pointer;
     transition: all var(--transition-fast);
+}
+
+.message-actions-bar .action-btn-reply:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
 }
 
 .message-actions-bar .action-btn-edit:hover {
@@ -2144,6 +2257,75 @@ body.flash-mention {
     background: var(--danger-dim);
     border-color: var(--danger);
     color: var(--danger);
+}
+
+.reply-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-xs);
+    background: var(--bg-surface);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.reply-indicator:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.reply-indicator svg {
+    opacity: 0.7;
+}
+
+.reply-indicator .reply-original {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* ============================================
+   REPLY PREVIEW IN MESSAGE BUBBLE
+   ============================================ */
+.reply-preview-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-sm);
+    background: rgba(0, 0, 0, 0.1);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.reply-preview-bubble:hover {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.reply-preview-author {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-bottom: 2px;
+}
+
+.reply-preview-text {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    font-style: italic;
 }
 
 /* ============================================
@@ -6192,4 +6374,95 @@ body.flash-mention {
 
 .member-item.banned .member-status-indicator {
     background: var(--text-muted);
+}
+
+
+/* MOBILE ADAPTATION - DO NOT REMOVE */
+@media (max-width: 768px) {
+    /* 1. Global Reset & Typography */
+    html, body {
+        overflow-x: hidden;
+        font-size: 16px; /* Minimum legible size */
+        -webkit-text-size-adjust: 100%;
+    }
+
+    /* 2. Layout Containers (100% width) */
+    .container, .main-container, #app-container, .content-wrapper, .chat-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+    }
+
+    /* 3. Header / HUD adjustments */
+    #hud-header {
+        padding: 10px;
+        height: auto;
+        flex-wrap: wrap;
+    }
+    .hud-left, .hud-center, .hud-right {
+        width: auto;
+    }
+    .hud-center {
+        display: none; /* Hide non-essential center info on mobile if crowded */
+    }
+
+    /* 4. Sidebar (Menu Overlay) - Hidden/Deployable */
+    .menu-overlay {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 85% !important;
+        max-width: 320px;
+        height: 100vh;
+        z-index: 9999;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+        background: var(--bg-secondary, #1a1a1a);
+        box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+        display: flex !important;
+        flex-direction: column;
+        padding-top: 60px; /* Space for close button if inside, or just top spacing */
+    }
+    .menu-overlay.active {
+        transform: translateX(0) !important;
+    }
+
+    /* 5. Activation Button */
+    #main-menu-btn, .btn-menu {
+        display: flex !important;
+        position: fixed; /* Fix it to be always accessible */
+        top: 10px;
+        right: 10px;
+        z-index: 10000; /* Above everything */
+        width: 44px;
+        height: 44px;
+        background: var(--bg-primary, #000);
+        border: 1px solid var(--border, #333);
+        border-radius: 8px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* 6. Message Containers & Spacing */
+    .message-content {
+        max-width: 90% !important;
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+    .message-row {
+        margin-bottom: 15px !important;
+        padding: 0 10px;
+    }
+    
+    /* 7. Input Areas */
+    .input-area, .chat-input-container {
+        padding: 10px !important;
+        width: 100% !important;
+    }
+    textarea, input[type="text"] {
+        font-size: 16px !important; /* Prevent zoom */
+        padding: 12px !important;
+    }
 }

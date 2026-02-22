@@ -243,6 +243,8 @@ const KRONOS = {
             
             // Reply preview
             replyPreview: getEl('reply-preview'),
+            privateReplyPreview: getEl('private-reply-preview'),
+            privateReplyCancel: getEl('private-reply-cancel'),
             
             // Mentions
             mentionList: getEl('mention-list'),
@@ -1533,31 +1535,36 @@ const KRONOS = {
     },
     
     // Charger les messages d'un salon
-    loadMessages: async function(channelId) {
+    loadMessages: async function(channelId, options = {}) {
+        const { beforeId = null, limit = 50 } = options;
+        
         if (!channelId) channelId = this.state.currentChannel?.id;
         if (!channelId) {
             console.warn('[KRONOS] Pas de channel ID pour charger les messages');
             return;
         }
 
-        // Vider les notifications non lues pour ce canal
-        if (this.state.unreadNotifications && this.state.unreadNotifications.length > 0) {
-            const initialCount = this.state.unreadNotifications.length;
-            this.state.unreadNotifications = this.state.unreadNotifications.filter(n => n.channel_id !== channelId);
-            if (this.state.unreadNotifications.length !== initialCount) {
-                // Si on a vidé des notifs, on prévient le SW (optionnel ici si on veut tout vider d'un coup plus tard)
-                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    // Pour simplifier, on vide tout le cache IndexedDB quand on lit un salon si on veut, 
-                    // ou on implémente un CLEAR_BY_CHANNEL dans le SW.
-                    // Pour l'instant on se contente de la sync locale.
+        // Si on charge l'historique (beforeId), on ne touche pas aux notifications
+        if (!beforeId) {
+            // Vider les notifications non lues pour ce canal
+            if (this.state.unreadNotifications && this.state.unreadNotifications.length > 0) {
+                const initialCount = this.state.unreadNotifications.length;
+                this.state.unreadNotifications = this.state.unreadNotifications.filter(n => n.channel_id !== channelId);
+                if (this.state.unreadNotifications.length !== initialCount) {
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        // Sync locale
+                    }
                 }
             }
         }
         
-        console.log('[KRONOS] Chargement des messages pour:', channelId);
+        console.log('[KRONOS] Chargement des messages pour:', channelId, 'before:', beforeId);
         
         try {
-            const response = await fetch(`/api/messages/${channelId}`);
+            let url = `/api/messages/${channelId}?limit=${limit}`;
+            if (beforeId) url += `&before=${beforeId}`;
+            
+            const response = await fetch(url);
             if (!response.ok) {
                 console.error('[KRONOS] Erreur lors du chargement des messages:', response.status);
                 return;
@@ -1566,42 +1573,68 @@ const KRONOS = {
             
             console.log('[KRONOS] Messages chargés:', data.messages.length);
             
+            // Mise à jour de l'état de pagination
+            this.state.pagination = {
+                hasMore: data.has_more,
+                loading: false,
+                beforeId: data.messages.length > 0 ? data.messages[0].id : null
+            };
+
             // CORRECTION CRITIQUE: Préserver les messages optimistes (pending) lors du chargement
             const currentMessages = this.state.messages[channelId] || [];
-            const pendingMessages = currentMessages.filter(m => m.pending);
-            const serverIds = new Set(data.messages.map(m => m.id));
-            const uniquePending = pendingMessages.filter(m => !serverIds.has(m.id));
             
-            this.state.messages[channelId] = [...data.messages, ...uniquePending];
+            if (beforeId) {
+                // Si on charge l'historique, on prépend les messages
+                // On doit filtrer les doublons éventuels
+                const currentIds = new Set(currentMessages.map(m => m.id));
+                const newMessages = data.messages.filter(m => !currentIds.has(m.id));
+                this.state.messages[channelId] = [...newMessages, ...currentMessages];
+            } else {
+                // Chargement initial ou refresh
+                const pendingMessages = currentMessages.filter(m => m.pending);
+                const serverIds = new Set(data.messages.map(m => m.id));
+                const uniquePending = pendingMessages.filter(m => !serverIds.has(m.id));
+                
+                this.state.messages[channelId] = [...data.messages, ...uniquePending];
+            }
             
             try {
-                const pinsResp = await fetch(`/api/channels/${channelId}/pins`);
-                if (pinsResp.ok) {
-                    const pinsData = await pinsResp.json();
-                    const set = new Set((pinsData.pins || []).map(p => p.pin?.message_id).filter(Boolean));
-                    this.state.pins[channelId] = set;
+                // Charger les épingles seulement au chargement initial
+                if (!beforeId) {
+                    const pinsResp = await fetch(`/api/channels/${channelId}/pins`);
+                    if (pinsResp.ok) {
+                        const pinsData = await pinsResp.json();
+                        const set = new Set((pinsData.pins || []).map(p => p.pin?.message_id).filter(Boolean));
+                        this.state.pins[channelId] = set;
+                    }
                 }
             } catch (e) {}
             
-            // Ne rendre que si c'est le canal public courant
-            if (this.state.currentChannel && this.state.currentChannel.id === channelId && !this.state.dm.current) {
-                this.renderMessages(this.state.messages[channelId]);
+            // Rendu
+            if (this.state.dm.current && this.state.dm.current.channel?.id === channelId) {
+                this.renderPrivateMessages(!!beforeId);
+            } else if (this.state.currentChannel && this.state.currentChannel.id === channelId) {
+                this.renderMessages(this.state.messages[channelId], !!beforeId);
             }
             
-            this.scrollToBottom();
         } catch (error) {
             console.error('[KRONOS] Erreur lors du chargement des messages:', error);
+            this.state.pagination.loading = false;
         }
     },
     
     // Afficher les messages
-    renderMessages: function(messages) {
+    renderMessages: function(messages, maintainScroll = false) {
         const container = this.elements.messagesContainer;
         
         if (!container) {
             console.error('[KRONOS] Conteneur de messages non trouvé!');
             return;
         }
+        
+        // Sauvegarder la position de scroll avant modification
+        const oldHeight = container.scrollHeight;
+        const oldTop = container.scrollTop;
         
         container.innerHTML = '';
         
@@ -1625,7 +1658,7 @@ const KRONOS = {
         
         messages.forEach((message, index) => {
             try {
-                console.log('[KRONOS] Création de l\'élément', index, '- ID:', message.id);
+                // console.log('[KRONOS] Création de l\'élément', index, '- ID:', message.id);
                 const element = this.createMessageElement(message);
                 if (element) {
                     fragment.appendChild(element);
@@ -1636,7 +1669,14 @@ const KRONOS = {
         });
         
         container.appendChild(fragment);
-        this.scrollToBottom();
+        
+        if (maintainScroll) {
+            // Restaurer la position relative
+            const newHeight = container.scrollHeight;
+            container.scrollTop = newHeight - oldHeight + oldTop;
+        } else {
+            this.scrollToBottom();
+        }
     },
     
     // Créer un élément de message
@@ -1672,7 +1712,7 @@ const KRONOS = {
                 const currentRole = latestUser.role || message.author.role || 'member';
                 const isBanned = this.state.bannedUsers?.some(u => u.id === authorId);
                 
-                return {
+                const authorData = {
                     id: authorId,
                     username: message.author.username || '',
                     display_name: message.author.display_name || message.author.username || 'Inconnu',
@@ -1684,6 +1724,8 @@ const KRONOS = {
                     is_admin: currentRole === 'admin' || currentRole === 'moderator',
                     is_banned: isBanned
                 };
+                authorData.json = JSON.stringify(authorData);
+                return authorData;
             })() : null),
             can_edit: message.author?.id === this.state.user?.id || this.state.user?.is_admin,
             can_delete: message.author?.id === this.state.user?.id || this.state.user?.is_admin,
@@ -2032,64 +2074,90 @@ const KRONOS = {
         const canModify = isSelf || isAdmin;
         const canPin = isAdmin;
         
-        if (canModify && !message.is_system) {
-            // Créer la barre d'actions si elle n'existe pas
+        if (!message.is_system) {
+            // Créer ou récupérer la barre d'actions
             let actionsBar = element.querySelector('.message-actions-bar');
             if (!actionsBar) {
                 actionsBar = document.createElement('div');
                 actionsBar.className = 'message-actions-bar';
-                const isPinned = this.state.pins[this.state.currentChannel?.id || message.channel_id]?.has(message.id);
-                actionsBar.innerHTML = `
-                    <button class="action-btn-edit" title="Modifier">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                    </button>
-                    <button class="action-btn-delete" title="Supprimer">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                        </svg>
-                    </button>
-                    ${canPin ? `
-                    <button class="action-btn-pin" title="Épingler" style="display:${isPinned ? 'none' : 'inline-flex'}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="12 2 16 6 12 10 8 6"></polygon>
-                            <line x1="12" y1="10" x2="12" y2="22"></line>
-                        </svg>
-                    </button>
-                    <button class="action-btn-unpin" title="Désépingler" style="display:${isPinned ? 'inline-flex' : 'none'}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="12 2 16 6 12 10 8 6"></polygon>
-                            <line x1="12" y1="10" x2="12" y2="22"></line>
-                            <line x1="4" y1="4" x2="20" y2="20"></line>
-                        </svg>
-                    </button>` : ''}
-                `;
                 element.appendChild(actionsBar);
-                
-                // Écouteurs pour les boutons
-                actionsBar.querySelector('.action-btn-edit').addEventListener('click', (e) => {
+            }
+            
+            // Toujours régénérer le contenu pour s'assurer que les boutons sont à jour (ex: après un changement de rôle ou mise à jour du code)
+            // Cela corrige le cas où le bouton "Répondre" serait manquant sur des messages déjà rendus
+            const isPinned = this.state.pins[this.state.currentChannel?.id || message.channel_id]?.has(message.id);
+            
+            let buttonsHtml = `
+                <button class="action-btn-reply" title="Répondre">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+            `;
+            
+            if (canModify) {
+                buttonsHtml += `
+                <button class="action-btn-edit" title="Modifier">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                </button>
+                <button class="action-btn-delete" title="Supprimer">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+                `;
+            }
+            
+            if (canPin) {
+                buttonsHtml += `
+                <button class="action-btn-pin" title="Épingler" style="display:${isPinned ? 'none' : 'inline-flex'}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 16 6 12 10 8 6"></polygon>
+                        <line x1="12" y1="10" x2="12" y2="22"></line>
+                    </svg>
+                </button>
+                <button class="action-btn-unpin" title="Désépingler" style="display:${isPinned ? 'inline-flex' : 'none'}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 16 6 12 10 8 6"></polygon>
+                        <line x1="12" y1="10" x2="12" y2="22"></line>
+                        <line x1="4" y1="4" x2="20" y2="20"></line>
+                    </svg>
+                </button>`;
+            }
+            
+            actionsBar.innerHTML = buttonsHtml;
+            
+            // Écouteurs pour les boutons
+            actionsBar.querySelector('.action-btn-reply')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.replyToMessage(message.id, message.author?.username);
+            });
+            
+            if (canModify) {
+                actionsBar.querySelector('.action-btn-edit')?.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.editMessage(message);
                 });
                 
-                actionsBar.querySelector('.action-btn-delete').addEventListener('click', (e) => {
+                actionsBar.querySelector('.action-btn-delete')?.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.deleteMessage(message.id);
                 });
-                
-                if (canPin) {
-                    actionsBar.querySelector('.action-btn-pin')?.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.pinMessage(message.id);
-                    });
-                    actionsBar.querySelector('.action-btn-unpin')?.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.unpinMessage(message.id);
-                    });
-                }
+            }
+            
+            if (canPin) {
+                actionsBar.querySelector('.action-btn-pin')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.pinMessage(message.id);
+                });
+                actionsBar.querySelector('.action-btn-unpin')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.unpinMessage(message.id);
+                });
             }
         }
     },
@@ -2329,9 +2397,20 @@ const KRONOS = {
                  const name = message.author?.display_name || message.author?.username || '';
                  const time = this.formatTime(message.created_at);
                  
+                 let replyHtml = '';
+                 if (message.reply_to) {
+                     const replyAuthor = message.reply_to.author ? (message.reply_to.author.username || 'Inconnu') : 'Inconnu';
+                     const replyContent = message.reply_to.content || (message.reply_to.attachments?.length ? '[Fichier]' : '');
+                     replyHtml = `
+                     <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('${message.reply_to.id}')" style="cursor: pointer; opacity: 0.8; font-size: 0.85em; margin-bottom: 4px; border-left: 2px solid var(--accent); padding-left: 6px;">
+                         <span class="reply-original">Replying to <strong>${this.escapeHtml(replyAuthor)}</strong>: ${this.escapeHtml(replyContent)}</span>
+                     </div>`;
+                 }
+                 
                  div.innerHTML = `
                     <img class="private-message-avatar" src="${avatar}" alt="">
                     <div class="private-message-content">
+                        ${replyHtml}
                         <div class="private-message-author">${this.escapeHtml(name)}</div>
                         <div class="private-message-bubble">${this.escapeHtml(message.content || '')}</div>
                         <div class="private-message-meta">
@@ -2340,12 +2419,21 @@ const KRONOS = {
                     </div>
                  `;
                  
-                 // Actions DM: réutiliser la barre publique (message-actions-bar)
+                 // Actions DM: Ajout du bouton Répondre et autres actions
+                 const bar = document.createElement('div');
+                 bar.className = 'message-actions-bar';
+                 
+                 let buttonsHtml = `
+                     <button class="action-btn-reply" title="Répondre">
+                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                             <polyline points="15 18 9 12 15 6"/>
+                         </svg>
+                     </button>
+                 `;
+
                  const canEdit = (message.author?.id === this.state.user?.id) || (this.state.user?.role === 'admin' || this.state.user?.role === 'supreme' || this.state.user?.is_admin);
                  if (canEdit) {
-                     const bar = document.createElement('div');
-                     bar.className = 'message-actions-bar';
-                     bar.innerHTML = `
+                     buttonsHtml += `
                          <button class="action-btn-edit" title="Modifier">
                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -2359,7 +2447,17 @@ const KRONOS = {
                              </svg>
                          </button>
                      `;
-                     div.appendChild(bar);
+                 }
+                 
+                 bar.innerHTML = buttonsHtml;
+                 div.appendChild(bar);
+                 
+                 bar.querySelector('.action-btn-reply')?.addEventListener('click', (e) => { 
+                     e.stopPropagation(); 
+                     this.replyToMessage(message.id, message.author?.username); 
+                 });
+                 
+                 if (canEdit) {
                      bar.querySelector('.action-btn-edit')?.addEventListener('click', (e) => { e.stopPropagation(); this.editMessage(message); });
                      bar.querySelector('.action-btn-delete')?.addEventListener('click', (e) => { e.stopPropagation(); this.deleteMessage(message.id); });
                  }
@@ -4319,6 +4417,134 @@ const KRONOS = {
     },
     
         // Envoyer un message avec Optimistic UI et support Retry
+    // ============================================
+    // GESTION DES RÉPONSES ET SCROLL
+    // ============================================
+    
+    // Commencer une réponse
+    replyToMessage: function(messageId, authorName) {
+        console.log('[KRONOS] Répondre au message:', messageId);
+        
+        // Trouver le message complet
+        let message = null;
+        
+        // Chercher dans les messages publics du canal courant
+        if (this.state.currentChannel && this.state.messages[this.state.currentChannel.id]) {
+             message = this.state.messages[this.state.currentChannel.id].find(m => m.id === messageId);
+        }
+        
+        // Si non trouvé, chercher dans les messages privés du canal courant
+        if (!message && this.state.dm.current && this.state.dm.current.channel?.id) {
+             const channelId = this.state.dm.current.channel.id;
+             if (this.state.messages[channelId]) {
+                 message = this.state.messages[channelId].find(m => m.id === messageId);
+             }
+        }
+        
+        if (!message) {
+            console.warn('[KRONOS] Message non trouvé pour réponse:', messageId);
+            if (authorName) {
+                message = {
+                    id: messageId,
+                    author: { username: authorName, display_name: authorName },
+                    content: '...'
+                };
+            } else {
+                return;
+            }
+        }
+        
+        this.startReply(message);
+    },
+    
+    // Scroll vers un message spécifique
+    scrollToMessage: async function(messageId) {
+        console.log('[KRONOS] Scroll vers le message:', messageId);
+        
+        // Chercher dans le conteneur public ou privé
+        let container = this.elements.messagesContainer;
+        let channelId = this.state.currentChannel?.id;
+
+        if (this.state.dm.current) {
+            container = this.elements.privateMessagesContainer;
+            channelId = this.state.dm.current.channel?.id;
+        }
+        
+        if (!container) return;
+        
+        // Fonction interne pour vérifier et scroller
+        const tryScroll = () => {
+            const element = container.querySelector(`[data-message-id="${messageId}"]`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.classList.add('highlight-message');
+                setTimeout(() => element.classList.remove('highlight-message'), 2000);
+                return true;
+            }
+            return false;
+        };
+
+        // 1. Essai immédiat
+        if (tryScroll()) return;
+        
+        // 2. Si pas trouvé, charger l'historique
+        console.log('[KRONOS] Message non visible, tentative de chargement de l\'historique...');
+        
+        // Notification discrète
+        const notifId = this.showNotification('Recherche du message original...', 'info');
+        
+        let attempts = 0;
+        const maxAttempts = 5; // On essaie de charger 5 pages max
+        
+        while (attempts < maxAttempts) {
+            attempts++;
+            
+            // Récupérer le message le plus ancien actuel pour charger avant lui
+            const currentMessages = this.state.messages[channelId] || [];
+            if (currentMessages.length === 0) break;
+            
+            const oldestId = currentMessages[0].id;
+            
+            // Charger les messages précédents
+            await this.loadMessages(channelId, { beforeId: oldestId, limit: 50 });
+            
+            // Vérifier si le message est apparu
+            // On laisse un petit délai pour le rendu du DOM
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            if (tryScroll()) {
+                // Succès !
+                return;
+            }
+            
+            // Si plus d'historique dispo, on arrête
+            if (!this.state.pagination.hasMore) {
+                break;
+            }
+        }
+        
+        this.showNotification('Message original introuvable ou trop ancien', 'warning');
+    },
+
+    // Récupérer l'aperçu de la réponse depuis le store
+    getReplyPreview: function(replyToId) {
+        if (!replyToId) return null;
+        
+        // Chercher dans le canal courant
+        if (this.state.currentChannel) {
+            const messages = this.state.messages[this.state.currentChannel.id] || [];
+            const msg = messages.find(m => m.id === replyToId);
+            if (msg) return msg;
+        }
+        
+        // Chercher dans les DMs
+        if (this.state.dm.current) {
+             // ... logique DM si besoin
+        }
+        
+        return null;
+    },
+
     sendMessage: async function() {
         const nowSec = Math.floor(Date.now() / 1000);
         const muteUntil = this.state && this.state.muteUntil ? this.state.muteUntil : 0;
@@ -4333,6 +4559,7 @@ const KRONOS = {
         
         const content = this.elements.messageInput?.value.trim();
         const currentAttachments = [...this.state.attachments]; // Copie des fichiers
+        const replyTo = this.state.replyTo; // Capture reply state before clearing
         
         // 4. File-only send: Allow if content is empty but attachments exist
         if (!content && currentAttachments.length === 0) {
@@ -4372,16 +4599,17 @@ const KRONOS = {
         }));
 
         const optimisticMessage = {
-            id: clientId,
-            client_id: clientId,
-            channel_id: this.state.currentChannel.id,
-            content: content,
-            author: this.state.user,
-            created_at: now,
-            attachments: localAttachments,
-            pending: true,
-            _originalFiles: currentAttachments.map(a => a.file)
-        };
+                id: clientId,
+                client_id: clientId,
+                channel_id: this.state.currentChannel.id,
+                content: content,
+                author: this.state.user,
+                created_at: now,
+                attachments: localAttachments,
+                pending: true,
+                reply_to: replyTo,
+                _originalFiles: currentAttachments.map(a => a.file)
+            };
 
         // Rendu immédiat
         this.appendOptimisticMessage(optimisticMessage);
@@ -4401,7 +4629,7 @@ const KRONOS = {
             const payload = {
                 channel_id: optimisticMessage.channel_id,
                 content: content,
-                reply_to_id: this.state.replyTo?.id,
+                reply_to_id: replyTo?.id,
                 attachments: serverAttachments,
                 client_id: clientId
             };
@@ -4907,12 +5135,19 @@ const KRONOS = {
             this.elements.messageInput.style.height = 'auto';
         }
         
+        if (this.elements.privateMessageInput) {
+            this.elements.privateMessageInput.value = '';
+            this.elements.privateMessageInput.style.height = 'auto';
+        }
+        
         this.state.replyTo = null;
         this.updateReplyPreview();
         
         // Réinitialiser le input file
         const fileInput = document.getElementById('message-file-input');
         if (fileInput) fileInput.value = '';
+        const privateFileInput = document.getElementById('private-file-input');
+        if (privateFileInput) privateFileInput.value = '';
     },
     
     // Débuter une réponse
@@ -4921,22 +5156,40 @@ const KRONOS = {
         
         this.state.replyTo = message;
         this.updateReplyPreview();
-        this.elements.messageInput?.focus();
+        
+        if (this.state.dm.current) {
+            this.elements.privateMessageInput?.focus();
+        } else {
+            this.elements.messageInput?.focus();
+        }
     },
     
     // Mettre à jour l'aperçu de réponse
     updateReplyPreview: function() {
-        const preview = this.elements.replyPreview;
-        if (!preview) return;
+        const publicPreview = this.elements.replyPreview;
+        const privatePreview = this.elements.privateReplyPreview;
         
-        if (this.state.replyTo) {
-            preview.style.display = 'flex';
-            const authorEl = preview.querySelector('.reply-author');
-            const textEl = preview.querySelector('.reply-text');
-            if (authorEl) authorEl.textContent = this.state.replyTo.author?.display_name || 'Utilisateur';
-            if (textEl) textEl.textContent = this.state.replyTo.content?.substring(0, 50) || '';
+        const updatePreview = (preview) => {
+            if (!preview) return;
+            
+            if (this.state.replyTo) {
+                preview.style.display = 'flex';
+                const authorEl = preview.querySelector('.reply-author');
+                const textEl = preview.querySelector('.reply-text');
+                if (authorEl) authorEl.textContent = this.state.replyTo.author?.display_name || 'Utilisateur';
+                if (textEl) textEl.textContent = this.state.replyTo.content?.substring(0, 50) || '';
+            } else {
+                preview.style.display = 'none';
+            }
+        };
+        
+        // Mettre à jour le bon preview en fonction du contexte
+        if (this.state.dm.current) {
+            updatePreview(privatePreview);
+            if (publicPreview) publicPreview.style.display = 'none';
         } else {
-            preview.style.display = 'none';
+            updatePreview(publicPreview);
+            if (privatePreview) privatePreview.style.display = 'none';
         }
     },
     
@@ -5493,11 +5746,16 @@ const KRONOS = {
         if (info) info.style.display = 'flex';
     },
     
-    renderPrivateMessages: function() {
+    renderPrivateMessages: function(maintainScroll = false) {
         const container = this.elements.privateMessagesContainer;
         const channelId = this.state.dm.current?.channel?.id;
         if (!container || !channelId) return;
         const msgs = this.state.messages[channelId] || [];
+        
+        // Sauvegarder scroll
+        const oldHeight = container.scrollHeight;
+        const oldTop = container.scrollTop;
+        
         container.innerHTML = '';
         const frag = document.createDocumentFragment();
         msgs.forEach((m) => {
@@ -5507,9 +5765,21 @@ const KRONOS = {
             const avatar = m.author?.avatar || '/static/icons/default_avatar.svg';
             const name = m.author?.display_name || m.author?.username || '';
             const time = this.formatTime(m.created_at);
+            
+            let replyHtml = '';
+            if (m.reply_to) {
+                const replyAuthor = m.reply_to.author ? (m.reply_to.author.username || 'Inconnu') : 'Inconnu';
+                const replyContent = m.reply_to.content || (m.reply_to.attachments?.length ? '[Fichier]' : '');
+                replyHtml = `
+                <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('${m.reply_to.id}')" style="cursor: pointer; opacity: 0.8; font-size: 0.85em; margin-bottom: 4px; border-left: 2px solid var(--accent); padding-left: 6px;">
+                    <span class="reply-original">Replying to <strong>${this.escapeHtml(replyAuthor)}</strong>: ${this.escapeHtml(replyContent)}</span>
+                </div>`;
+            }
+            
             div.innerHTML = `
                 <img class="private-message-avatar" src="${avatar}" alt="">
                 <div class="private-message-content">
+                    ${replyHtml}
                     <div class="private-message-author">${this.escapeHtml(name)}</div>
                     <div class="private-message-bubble">${this.escapeHtml(m.content || '')}</div>
                     <div class="private-message-meta">
@@ -5518,12 +5788,23 @@ const KRONOS = {
                 </div>
             `;
             
-            // Actions DM: réutiliser la barre publique (message-actions-bar)
-            const canEdit = (m.author?.id === this.state.user?.id) || (this.state.user?.role === 'admin' || this.state.user?.role === 'supreme' || this.state.user?.is_admin);
-            if (canEdit) {
-                const bar = document.createElement('div');
-                bar.className = 'message-actions-bar';
-                bar.innerHTML = `
+            // Actions DM: Ajout du bouton Répondre
+            const isMe = m.author?.id === this.state.user?.id;
+            const isAdmin = this.state.user?.role === 'admin' || this.state.user?.role === 'supreme' || this.state.user?.is_admin;
+            
+            const bar = document.createElement('div');
+            bar.className = 'message-actions-bar';
+            
+            let buttonsHtml = `
+                <button class="action-btn-reply" title="Répondre">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+            `;
+            
+            if (isMe || isAdmin) {
+                buttonsHtml += `
                     <button class="action-btn-edit" title="Modifier">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -5537,7 +5818,17 @@ const KRONOS = {
                         </svg>
                     </button>
                 `;
-                div.appendChild(bar);
+            }
+            
+            bar.innerHTML = buttonsHtml;
+            div.appendChild(bar);
+            
+            bar.querySelector('.action-btn-reply')?.addEventListener('click', (e) => { 
+                e.stopPropagation(); 
+                this.replyToMessage(m.id, m.author.username); 
+            });
+            
+            if (isMe || isAdmin) {
                 bar.querySelector('.action-btn-edit')?.addEventListener('click', (e) => { e.stopPropagation(); this.editMessage(m); });
                 bar.querySelector('.action-btn-delete')?.addEventListener('click', (e) => { e.stopPropagation(); this.deleteMessage(m.id); });
             }
@@ -5576,7 +5867,13 @@ const KRONOS = {
             frag.appendChild(div);
         });
         container.appendChild(frag);
-        container.scrollTop = container.scrollHeight;
+        
+        if (maintainScroll) {
+            const newHeight = container.scrollHeight;
+            container.scrollTop = newHeight - oldHeight + oldTop;
+        } else {
+            container.scrollTop = container.scrollHeight;
+        }
     },
     
     sendPrivateMessage: function() {
@@ -5602,7 +5899,11 @@ const KRONOS = {
         const conv = this.state.dm.current;
         if (!conv) return;
         
-        const payload = { content: text, attachments: [] };
+        const payload = { 
+            content: text, 
+            attachments: [],
+            reply_to_id: this.state.replyTo?.id 
+        };
         
         // Uploader les pièces jointes si présentes
         if (hasAttachments) {
@@ -5618,6 +5919,12 @@ const KRONOS = {
     },
     
     _emitPrivateMessage: function(payload, conv, inputEl) {
+        // Capture reply state before clearing
+        const replyTo = this.state.replyTo;
+        
+        // Clear UI immediately (Optimistic UI)
+        this.clearComposer();
+
         if (conv.channel?.id) {
             payload.channel_id = conv.channel.id;
         } else if (conv.other_user?.id) {
@@ -5667,6 +5974,7 @@ const KRONOS = {
             created_at: new Date().toISOString(),
             pending: true,
             attachments: payload.attachments || [],
+            reply_to: replyTo,
             _originalFiles: payload.attachments // Pour le retry
         };
 
@@ -5699,9 +6007,20 @@ const KRONOS = {
             const name = this.state.user?.display_name || this.state.user?.username || '';
             const time = this.formatTime(tempMessage.created_at);
             
+            let replyHtml = '';
+            if (replyTo) {
+                const replyAuthor = replyTo.author ? (replyTo.author.username || 'Inconnu') : 'Inconnu';
+                const replyContent = replyTo.content || (replyTo.attachments?.length ? '[Fichier]' : '');
+                replyHtml = `
+                <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('${replyTo.id}')" style="cursor: pointer; opacity: 0.8; font-size: 0.85em; margin-bottom: 4px; border-left: 2px solid var(--accent); padding-left: 6px;">
+                    <span class="reply-original">Replying to <strong>${this.escapeHtml(replyAuthor)}</strong>: ${this.escapeHtml(replyContent)}</span>
+                </div>`;
+            }
+
             div.innerHTML = `
                 <img class="private-message-avatar" src="${avatar}" alt="">
                 <div class="private-message-content">
+                    ${replyHtml}
                     <div class="private-message-author">${this.escapeHtml(name)}</div>
                     <div class="private-message-bubble">${this.escapeHtml(tempMessage.content || '')}</div>
                     <div class="private-message-meta">
@@ -6408,6 +6727,9 @@ const KRONOS = {
         // ============================================
         
         if (isMessage) {
+            // Action de réponse pour tous
+            html += `<button class="context-item" data-action="reply" data-id="${data.id}">Répondre</button>`;
+            
             // Actions pour ses propres messages
             if (isSelf) {
                 html += `
@@ -6498,6 +6820,33 @@ const KRONOS = {
         try {
             switch (action) {
                 // Actions pour les messages
+                case 'reply':
+                    // Chercher le message dans le canal courant ou DM
+                    let replyMsg = null;
+                    if (this.state.currentChannel && this.state.messages[this.state.currentChannel.id]) {
+                        replyMsg = this.state.messages[this.state.currentChannel.id].find(m => m.id === id);
+                    }
+                    if (!replyMsg && this.state.dm.current && this.state.dm.current.channel?.id) {
+                        const channelId = this.state.dm.current.channel.id;
+                        if (this.state.messages[channelId]) {
+                            replyMsg = this.state.messages[channelId].find(m => m.id === id);
+                        }
+                    }
+                    
+                    if (replyMsg) {
+                        this.replyToMessage(id, replyMsg.author?.username);
+                    } else {
+                        // Tentative de récupération depuis le DOM si pas dans le state
+                        const msgEl = document.querySelector(`[data-message-id="${id}"]`);
+                        let authorName = '';
+                        if (msgEl) {
+                             const authorEl = msgEl.querySelector('.message-author') || msgEl.querySelector('.private-message-author');
+                             if (authorEl) authorName = authorEl.textContent.trim();
+                        }
+                        if (authorName) this.replyToMessage(id, authorName);
+                    }
+                    break;
+
                 case 'edit':
                     const message = this.state.messages[this.state.currentChannel?.id]?.find(m => m.id === id);
                     if (message) this.editMessage(message);
@@ -7600,6 +7949,12 @@ const KRONOS = {
         // Annuler la réponse
         if (this.elements.replyCancel) {
             this.elements.replyCancel.addEventListener('click', () => this.cancelReply());
+        }
+        if (this.elements.privateReplyCancel) {
+            this.elements.privateReplyCancel.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.cancelReply();
+            });
         }
         if (this.elements.cancelEditBtn) {
             this.elements.cancelEditBtn.addEventListener('click', (e) => {

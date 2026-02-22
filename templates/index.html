@@ -7,10 +7,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/mentions.css">
-    <link rel="stylesheet" href="/static/css/switches.css">
-    <link rel="stylesheet" href="/static/css/buttons.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20240222_2">
+    <link rel="stylesheet" href="/static/css/mentions.css?v=20240222_2">
+    <link rel="stylesheet" href="/static/css/switches.css?v=20240222_2">
+    <link rel="stylesheet" href="/static/css/buttons.css?v=20240222_2">
     <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
 
     <!-- Mustache.js -->
@@ -121,7 +121,7 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                         <span>GALERIE FICHIERS</span>
                     </a>
-                    <a href="/game" class="menu-item">
+                    <a href="/jeux" class="menu-item">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="4" width="18" height="14" rx="2" ry="2"></rect>
                             <circle cx="9" cy="11" r="2"></circle>
@@ -365,7 +365,15 @@
                         </div>
                     </div>
                         <div class="private-compose-area">
-                        <div class="private-attachments-preview" id="private-attachments-preview"></div>
+                            <div class="reply-preview" id="private-reply-preview" style="display: none;">
+                                <div class="reply-line"></div>
+                                <div class="reply-content">
+                                    <span class="reply-author"></span>
+                                    <span class="reply-text"></span>
+                                </div>
+                                <button class="reply-cancel" id="private-reply-cancel">×</button>
+                            </div>
+                            <div class="private-attachments-preview" id="private-attachments-preview"></div>
                         <div class="private-input-wrapper">
                             <button class="private-attach-btn" id="private-attach-btn" title="Joindre">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -479,24 +487,15 @@
              data-author-name="{{author.username}}"
              style="{{#reply_to}}margin-top: 0;{{/reply_to}}">
             
-            {{#reply_to}}
-            <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('{{reply_to.id}}')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="15 18 9 12 15 6"/>
-                </svg>
-                <span class="reply-original">{{reply_to.author.username}}: {{reply_to.content}}</span>
-            </div>
-            {{/reply_to}}
-            
             <div class="message-container">
                 {{^is_mine}}
                 <img src="{{author.avatar}}" alt="" class="message-avatar" onerror="this.src='/static/icons/default_avatar.svg'">
                 {{/is_mine}}
-                    <div class="message-main">
+                <div class="message-main">
                     {{^is_mine}}
                     <div class="message-header">
                         <span class="message-author {{#author.is_banned}}banned-author{{/author.is_banned}}" 
-                              onclick="event.stopPropagation(); KRONOS.showUserProfile({{json author}})">
+                              onclick="event.stopPropagation(); KRONOS.showUserProfile({{author.json}})">
                             {{author.display_name}}
                             <span class="role-badge {{author.role}}">{{author.role_name}}</span>
                         </span>
@@ -507,9 +506,9 @@
                     
                     <div class="message-bubble {{#is_mine}}own{{/is_mine}}">
                         {{#reply_to}}
-                        <div class="reply-preview-bubble" onclick="event.stopPropagation(); KRONOS.scrollToMessage('{{reply_to.id}}')">
-                            <span class="reply-preview-author">{{reply_to.author.username}}</span>
-                            <span class="reply-preview-text">{{reply_to.content}}</span>
+                        <div class="message-reply" onclick="event.stopPropagation(); KRONOS.scrollToMessage('{{id}}')">
+                            <span class="reply-author">@{{author.username}}</span>
+                            <span class="reply-text">{{content}}</span>
                         </div>
                         {{/reply_to}}
                         <div class="message-text-wrapper">
@@ -635,6 +634,6 @@
         // Override Socket.IO to use long-polling by default
         window.io = io;
     </script>
-    <script src="/static/js/kronos.js"></script>
+    <script src="/static/js/kronos.js?v=20240222_2"></script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "baseline": 10013,
+  "target_total": 1001300,
+  "langs": {
+    "fr": { "packs": 1, "lines": 10, "sample": "locales/fr/packs/pack_001.json" },
+    "en": { "packs": 1, "lines": 10, "sample": "locales/en/packs/pack_001.json" },
+    "de": { "packs": 0, "lines": 0, "sample": null },
+    "es": { "packs": 0, "lines": 0, "sample": null },
+    "it": { "packs": 0, "lines": 0, "sample": null },
+    "ja": { "packs": 0, "lines": 0, "sample": null }
+  }
+}

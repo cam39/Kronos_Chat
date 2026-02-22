@@ -82,3 +82,20 @@
     background-color: var(--border);
     border-radius: 3px;
 }
+
+
+/* MOBILE MENTIONS/TEXT */
+@media (max-width: 768px) {
+    .mentions-content, .legal-content {
+        padding: 15px !important;
+        width: 100% !important;
+    }
+    h1, h2, h3 {
+        word-wrap: break-word;
+        hyphens: auto;
+    }
+    p, li {
+        font-size: 16px !important;
+        line-height: 1.6 !important;
+    }
+}

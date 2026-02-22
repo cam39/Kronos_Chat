@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STATISTIQUES SERVEUR | KRONOS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            padding: 20px;
+        }
+        .stats-container {
+            max-width: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            height: calc(100vh - 150px); /* Hauteur optimisée pour éviter le scroll */
+            padding: 0 20px;
+        }
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            max-height: 100%;
+        }
+        h2 { color: var(--accent); margin-top: 0; font-size: 1.1rem; margin-bottom: 5px; }
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+            flex-grow: 1;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .btn {
+            background: var(--bg-surface);
+            color: var(--accent);
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 1px solid var(--accent);
+            font-weight: bold;
+        }
+        .btn:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin: 5px 0 15px 0;
+        }
+        /* Mobile fallback */
+        @media (max-width: 768px) {
+            .stats-container {
+                flex-direction: column;
+                height: auto;
+            }
+            .card {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>STATISTIQUES LIVE KRONOS</h1>
+        <a href="/" class="btn">RETOUR</a>
+    </div>
+
+    <div class="stats-container">
+        <div class="card">
+            <h2>UTILISATEURS EN LIGNE</h2>
+            <div id="online-count" class="stat-value">--</div>
+            <canvas id="onlineChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>CPU SERVEUR</h2>
+            <div id="cpu-val" class="stat-value">--%</div>
+            <canvas id="cpuChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>RAM SERVEUR</h2>
+            <div id="ram-val" class="stat-value">--%</div>
+            <canvas id="ramChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const ctxOnline = document.getElementById('onlineChart').getContext('2d');
+        const ctxCpu = document.getElementById('cpuChart').getContext('2d');
+        const ctxRam = document.getElementById('ramChart').getContext('2d');
+
+        // Configuration commune pour un rendu propre
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { 
+                padding: { top: 10, left: 10, right: 10, bottom: 120 } // Padding bottom augmenté pour remonter l'axe X
+            },
+            scales: {
+                x: { 
+                    display: true, // Affiche l'axe X
+                    ticks: { display: false }, // Cache les labels
+                    grid: { 
+                        display: false, 
+                        drawBorder: true,
+                        borderColor: 'rgba(255, 255, 255, 0.3)', // Ligne d'axe visible
+                        borderWidth: 2
+                    },
+                    border: { display: true, color: 'rgba(255, 255, 255, 0.3)' } // Compatibilité v4
+                },
+                y: { 
+                    beginAtZero: true, 
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { maxTicksLimit: 6 }
+                }
+            },
+            animation: false,
+            plugins: { legend: { display: false } },
+            elements: {
+                line: { tension: 0.3 } 
+            },
+            clip: 0
+        };
+
+        const onlineChart = new Chart(ctxOnline, {
+            type: 'line',
+            data: { labels: [], datasets: [{ 
+                label: 'Utilisateurs', 
+                data: [], 
+                borderColor: '#ccff00', 
+                backgroundColor: 'rgba(204, 255, 0, 0.1)', 
+                fill: 'origin', 
+                tension: 0.3 
+            }] },
+            options: {
+                ...commonOptions,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        suggestedMax: 5,
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' } 
+                    } 
+                }
+            }
+        });
+
+        const cpuChart = new Chart(ctxCpu, {
+            type: 'line',
+            data: { 
+                labels: [], 
+                datasets: [
+                    { 
+                        label: 'Global %', 
+                        data: [], 
+                        borderColor: '#ff4444', 
+                        backgroundColor: 'rgba(255, 68, 68, 0.1)', 
+                        fill: 'origin', 
+                        tension: 0.3 
+                    },
+                    { 
+                        label: 'Python %', 
+                        data: [], 
+                        borderColor: '#ffaa00', 
+                        backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+                        fill: 'origin', 
+                        tension: 0.3 
+                    }
+                ] 
+            },
+            options: { 
+                ...commonOptions, 
+                scales: { 
+                    y: { 
+                        min: 0, 
+                        suggestedMax: 100, 
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' } 
+                    } 
+                },
+                plugins: { legend: { display: true, labels: { color: '#fff' } } }
+            }
+        });
+
+        const ramChart = new Chart(ctxRam, {
+            type: 'line',
+            data: { labels: [], datasets: [{ 
+                label: 'RAM (MB)', 
+                data: [], 
+                borderColor: '#4444ff', 
+                backgroundColor: 'rgba(68, 68, 255, 0.1)', 
+                fill: 'origin', 
+                tension: 0.3 
+            }] },
+            options: { 
+                ...commonOptions, 
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        suggestedMax: 200, // Une valeur raisonnable en MB
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' } 
+                    } 
+                } 
+            }
+        });
+
+        // Socket.IO Connection
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Connected to stats');
+            socket.emit('join_stats');
+        });
+
+        socket.on('stats_update', (data) => {
+            document.getElementById('online-count').innerText = data.online_count;
+            document.getElementById('cpu-val').innerText = data.cpu_global.toFixed(1) + '%';
+            document.getElementById('ram-val').innerText = data.ram.toFixed(1) + ' MB';
+
+            const now = new Date().toLocaleTimeString();
+
+            updateChart(onlineChart, now, [data.online_count]);
+            updateChart(cpuChart, now, [data.cpu_global, data.cpu_process]);
+            updateChart(ramChart, now, [data.ram]);
+        });
+
+        socket.on('disconnect', () => {
+             console.log('Disconnected from stats');
+        });
+
+        function updateChart(chart, label, dataArray) {
+            chart.data.labels.push(label);
+            chart.data.datasets.forEach((dataset, index) => {
+                if (dataArray[index] !== undefined) {
+                    dataset.data.push(dataArray[index]);
+                }
+            });
+            if (chart.data.labels.length > 20) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach((dataset) => {
+                    dataset.data.shift();
+                });
+            }
+            chart.update();
+        }
+    </script>
+</body>
+</html>

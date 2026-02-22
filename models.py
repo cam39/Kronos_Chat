@@ -284,7 +284,10 @@ class Message(db.Model):
             data['reply_to'] = {
                 'id': self.reply_to.id,
                 'content': self.reply_to.content[:100] if self.reply_to.content else None,
-                'author_name': self.reply_to.author.display_name if self.reply_to.author else None,
+                'author': {
+                    'username': self.reply_to.author.username if self.reply_to.author else 'Inconnu',
+                    'display_name': self.reply_to.author.display_name if self.reply_to.author else 'Inconnu'
+                }
             }
         
         return data
@@ -418,6 +421,33 @@ class AuditLog(db.Model):
             'details': self.details,
             'ip_address': self.ip_address,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+# ============================================
+# MODÈLE JOURNAL DE CENSURE
+# ============================================
+class CensureLog(db.Model):
+    __tablename__ = 'censure_logs'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    admin_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    field = db.Column(db.String(50), nullable=False)  # 'bio' ou 'photo'
+    original_content = db.Column(db.Text, nullable=True)  # Contenu avant censure
+    censored_at = db.Column(db.DateTime, default=get_current_utc_time, nullable=False)
+    
+    # Relations
+    admin = db.relationship('User', foreign_keys=[admin_id], backref='censored_actions')
+    user = db.relationship('User', foreign_keys=[user_id], backref='censures_received')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'admin_id': self.admin_id,
+            'user_id': self.user_id,
+            'field': self.field,
+            'original_content': self.original_content,
+            'censored_at': self.censored_at.isoformat() if self.censored_at else None
         }
 
 # ============================================
