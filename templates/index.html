@@ -11,11 +11,10 @@
     <link rel="stylesheet" href="/static/css/mentions.css?v=20240222_2">
     <link rel="stylesheet" href="/static/css/switches.css?v=20240222_2">
     <link rel="stylesheet" href="/static/css/buttons.css?v=20240222_2">
+    <link rel="stylesheet" href="/static/css/embeds.css?v=20240222_2">
     <link rel="icon" type="image/svg+xml" href="/static/icons/favicon.svg">
 
-    <!-- Mustache.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/4.2.0/mustache.min.js"></script>
-</head>
+    </head>
 <body data-theme="{{ theme }}">
     <!-- OVERLAY DE CHARGEMENT -->
     <div id="loading-overlay">
@@ -44,7 +43,12 @@
             </div>
             
             <div class="hud-center">
-                
+                <div id="connection-status" class="connection-status">
+                    <span id="connection-text" class="connection-text">En ligne</span>
+                </div>
+                <div id="current-channel-display" class="current-channel">
+                    <span id="channel-name-display" class="channel-name">#général</span>
+                </div>
             </div>
             
             <div class="hud-right">
@@ -159,6 +163,11 @@
                 <div id="messages-container">
                     <!-- Messages chargés dynamiquement -->
                 </div>
+                <button id="scroll-to-bottom-btn" class="scroll-to-bottom-btn" title="Aller au dernier message" style="display: none;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
                 <div id="typing-indicator" class="typing-indicator" style="display: none;">
                     <span class="typing-dots">
                         <span></span><span></span><span></span>
@@ -629,11 +638,14 @@
     </script>
     {% endraw %}
     <script src="/static/js/socket.io.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/4.2.0/mustache.min.js"></script>
     <script>
         // Override Socket.IO to use long-polling by default
         window.io = io;
     </script>
     <script src="/static/js/kronos.js?v=20240222_2"></script>
+    
+    <!-- Éléments de debug optionnels -->
+    <div id="debug-status" style="display: none; position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); color: #0f0; padding: 5px; font-family: monospace; font-size: 12px; z-index: 9999;"></div>
+    <div id="status-message" style="display: none; position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 5px; z-index: 9999;"></div>
 </body>
 </html>

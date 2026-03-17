@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test processEmbeds</title>
+</head>
+<body>
+    <h1>Test processEmbeds Function</h1>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        // Simuler la fonction processEmbeds
+        function processEmbeds(content) {
+            if (!content) return content;
+            
+            try {
+                // YouTube
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                content = content.replace(/(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // Spotify
+                content = content.replace(/(?:https?:\/\/)?open\.spotify\.com\/track\/([a-zA-Z0-9]+)/g, 
+                    '<div class="embed-spotify"><iframe src="https://open.spotify.com/embed/track/$1" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe></div>');
+                
+                // Vimeo
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/g, 
+                    '<div class="embed-vimeo"><iframe src="https://player.vimeo.com/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+                
+                return content;
+            } catch (e) {
+                console.error('Erreur processEmbeds:', e);
+                return content;
+            }
+        }
+        
+        // Tests
+        const tests = [
+            {
+                name: "Message texte simple",
+                input: "Bonjour tout le monde !",
+                expected: "Bonjour tout le monde !"
+            },
+            {
+                name: "Lien YouTube classique",
+                input: "Regarde cette vidéo : https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                expected: '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe></div>'
+            },
+            {
+                name: "Lien YouTube youtu.be",
+                input: "https://youtu.be/dQw4w9WgXcQ",
+                expected: '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe></div>'
+            },
+            {
+                name: "Lien Spotify",
+                input: "Écoute ça : https://open.spotify.com/track/4cOdK2wGLETOMsVADgjd6V",
+                expected: '<div class="embed-spotify"><iframe src="https://open.spotify.com/embed/track/4cOdK2wGLETOMsVADgjd6V" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe></div>'
+            },
+            {
+                name: "Lien Vimeo",
+                input: "https://vimeo.com/123456789",
+                expected: '<div class="embed-vimeo"><iframe src="https://player.vimeo.com/video/123456789" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>'
+            },
+            {
+                name: "Texte avec lien normal",
+                input: "Visitez https://example.com pour plus d'infos",
+                expected: "Visitez https://example.com pour plus d'infos"
+            }
+        ];
+        
+        // Exécuter les tests
+        const results = tests.map(test => {
+            const result = processEmbeds(test.input);
+            const passed = result.includes(test.expected.split(' ')[0]) || result === test.expected;
+            
+            return {
+                name: test.name,
+                input: test.input,
+                output: result,
+                expected: test.expected,
+                passed: passed
+            };
+        });
+        
+        // Afficher les résultats
+        const resultsDiv = document.getElementById('test-results');
+        resultsDiv.innerHTML = '<h2>Résultats des tests:</h2>' + 
+            results.map(r => `
+                <div style="margin: 10px; padding: 10px; border: 1px solid ${r.passed ? 'green' : 'red'};">
+                    <strong>${r.name}</strong>: ${r.passed ? '✅ PASS' : '❌ FAIL'}<br>
+                    <small>Input: ${r.input}</small><br>
+                    <small>Output: ${r.output.substring(0, 100)}...</small>
+                </div>
+            `).join('');
+        
+        console.log('Tests processEmbeds:', results);
+    </script>
+</body>
+</html>

@@ -1,0 +1,995 @@
+/*
+   KRONOS - Responsive Design Mobile
+   Couche Responsive complète pour mobile < 768px
+   Auteur: UI/UX Expert
+*/
+
+/* ============================================
+   BOUTON BURGER MOBILE
+   ============================================ */
+.mobile-burger-btn {
+    display: none;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.mobile-burger-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+}
+
+.mobile-burger-btn svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--text-primary);
+}
+
+.mobile-burger-btn.active svg {
+    stroke: var(--accent);
+}
+
+/* ============================================
+   HEADER MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #hud-header {
+        height: 56px;
+        padding: 0 var(--space-sm);
+        gap: var(--space-xs);
+    }
+
+    .hud-left {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .hud-center {
+        display: none !important;
+    }
+
+    .hud-right {
+        gap: var(--space-xs);
+        flex-shrink: 0;
+    }
+
+    .logo {
+        gap: var(--space-xs);
+    }
+
+    .logo svg {
+        width: 28px;
+        height: 28px;
+    }
+
+    .logo-text {
+        display: none;
+    }
+
+    /* Boutons header - taille tactile 44px */
+    .hud-right button,
+    .hud-right .btn-files,
+    .hud-right .btn-members,
+    .hud-right .btn-pins,
+    .hud-right .btn-notifications,
+    .hud-right .btn-panic,
+    .hud-right .btn-settings {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        padding: var(--space-xs) !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hud-right button svg,
+    .hud-right .btn-files svg,
+    .hud-right .btn-members svg,
+    .hud-right .btn-pins svg,
+    .hud-right .btn-notifications svg,
+    .hud-right .btn-panic svg,
+    .hud-right .btn-settings svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Indicateur utilisateur compact */
+    .user-indicator {
+        padding: var(--space-xs) !important;
+        gap: var(--space-xs) !important;
+    }
+
+    .user-avatar {
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    .user-name {
+        display: none;
+    }
+
+    .user-role-badge {
+        display: none;
+    }
+
+    /* Bouton burger visible sur mobile */
+    .mobile-burger-btn {
+        display: flex;
+    }
+
+    /* Masquer le bouton menu principal sur mobile */
+    #main-menu-btn {
+        display: none;
+    }
+}
+
+/* ============================================
+   MAIN CONTENT MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #main-content {
+        top: 56px;
+        bottom: 56px;
+        left: 0;
+        right: 0;
+    }
+
+    #chat-viewport {
+        padding: var(--space-sm);
+    }
+
+    #messages-container {
+        padding: var(--space-xs);
+        gap: var(--space-xs);
+    }
+
+    /* Zone de composition */
+    #compose-area {
+        padding: var(--space-sm);
+    }
+
+    .compose-container {
+        gap: var(--space-xs);
+    }
+
+    .input-wrapper {
+        padding: var(--space-xs);
+        gap: var(--space-xs);
+    }
+
+    /* Boutons d'action - taille tactile 44px */
+    .attach-btn,
+    .send-btn {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #message-input {
+        min-height: 44px !important;
+        padding: var(--space-sm) !important;
+        font-size: 16px; /* Empêche le zoom sur iOS */
+    }
+
+    /* Aperçu des pièces jointes */
+    .attachments-preview {
+        padding: var(--space-xs);
+        gap: var(--space-xs);
+    }
+
+    .attachment-item {
+        max-width: 80px;
+        max-height: 80px;
+    }
+}
+
+/* ============================================
+   DOCK NAVIGATION MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #dock-nav {
+        height: 56px;
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    .dock-channels {
+        display: flex;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: var(--space-xs);
+        padding: var(--space-xs);
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .dock-channels::-webkit-scrollbar {
+        display: none;
+    }
+
+    .channel-item {
+        flex-shrink: 0;
+        padding: var(--space-xs) var(--space-sm);
+        min-width: auto;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .channel-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    .channel-name {
+        max-width: 100px;
+        font-size: 12px;
+    }
+
+    .channel-unread {
+        min-width: 18px;
+        height: 18px;
+        font-size: 10px;
+        padding: 0 4px;
+    }
+}
+
+/* ============================================
+   MENU BURGER / DRAWER MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    /* Overlay du menu burger */
+    #main-menu-overlay {
+        width: 85%;
+        max-width: 320px;
+        z-index: 2000;
+    }
+
+    .menu-content {
+        padding: var(--space-md);
+    }
+
+    .menu-header {
+        margin-bottom: var(--space-md);
+        padding-bottom: var(--space-sm);
+    }
+
+    .menu-header h3 {
+        font-size: 1rem;
+    }
+
+    .menu-nav {
+        gap: var(--space-xs);
+    }
+
+    .menu-item {
+        padding: var(--space-sm) var(--space-md);
+        min-height: 48px;
+        gap: var(--space-sm);
+        font-size: 14px;
+    }
+
+    .menu-item svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    /* Fermer le menu en cliquant à côté */
+    .menu-overlay::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: -1;
+    }
+}
+
+/* ============================================
+   SIDE PANELS MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    .side-panel {
+        width: 100%;
+        max-width: 100%;
+        top: 56px;
+        bottom: 56px;
+        left: -100%;
+        right: auto;
+        z-index: 500;
+    }
+
+    .side-panel.right {
+        left: auto;
+        right: -100%;
+    }
+
+    .side-panel.open {
+        transform: translateX(0);
+        left: 0;
+    }
+
+    .side-panel.right.open {
+        left: auto;
+        right: 0;
+        transform: translateX(0);
+    }
+
+    .panel-header {
+        padding: var(--space-sm) var(--space-md);
+        min-height: 48px;
+    }
+
+    .panel-header h3 {
+        font-size: 14px;
+    }
+
+    .panel-close {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+
+    .panel-content {
+        padding: var(--space-sm);
+        overflow-y: auto;
+    }
+
+    /* Onglets membres */
+    .members-tabs {
+        padding: var(--space-xs);
+        gap: var(--space-xs);
+    }
+
+    .members-tab {
+        flex: 1;
+        padding: var(--space-sm);
+        min-height: 44px;
+        font-size: 12px;
+    }
+
+    /* Recherche */
+    .members-search {
+        padding: var(--space-xs);
+    }
+
+    .members-search-input {
+        padding: var(--space-sm);
+        font-size: 16px; /* Empêche le zoom */
+    }
+
+    /* Liste des membres */
+    .members-list {
+        gap: var(--space-xs);
+    }
+
+    .member-item {
+        padding: var(--space-sm);
+        min-height: 56px;
+    }
+
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .member-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .member-name {
+        font-size: 14px;
+    }
+
+    .member-role {
+        font-size: 11px;
+    }
+
+    /* Boutons d'action membres - taille tactile 44px */
+    .member-actions {
+        display: flex;
+        gap: var(--space-xs);
+    }
+
+    .member-action-btn {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        padding: var(--space-xs) !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Stats membres */
+    .members-stats {
+        padding: var(--space-sm);
+        gap: var(--space-sm);
+    }
+
+    .members-stat {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: 12px;
+    }
+}
+
+/* ============================================
+   MESSAGES MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    .message {
+        padding: var(--space-sm);
+        gap: var(--space-sm);
+    }
+
+    .message-avatar {
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
+    }
+
+    .message-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .message-header {
+        gap: var(--space-xs);
+        flex-wrap: wrap;
+    }
+
+    .message-author {
+        font-size: 13px;
+    }
+
+    .message-timestamp {
+        font-size: 10px;
+    }
+
+    .message-text {
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    /* Actions message */
+    .message-actions {
+        opacity: 1;
+        padding: var(--space-xs);
+    }
+
+    .message-action-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Reply preview */
+    .reply-preview {
+        padding: var(--space-sm);
+        margin-bottom: var(--space-xs);
+    }
+
+    /* Pièces jointes messages */
+    .message-attachments {
+        gap: var(--space-xs);
+    }
+
+    .message-attachment {
+        max-width: 150px;
+    }
+
+    .attachment-thumbnail {
+        width: 100%;
+        height: auto;
+        max-height: 120px;
+    }
+}
+
+/* ============================================
+   MODALES MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    .modal-overlay {
+        padding: var(--space-sm);
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal {
+        width: 95%;
+        max-width: 100%;
+        max-height: 90vh;
+        border-radius: var(--radius-lg);
+    }
+
+    .modal-header {
+        padding: var(--space-sm) var(--space-md);
+        min-height: 48px;
+    }
+
+    .modal-header h2 {
+        font-size: 16px;
+    }
+
+    .modal-close {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+
+    .modal-content {
+        padding: var(--space-sm);
+        overflow-y: auto;
+    }
+
+    /* Settings modal */
+    .settings-modal {
+        width: 95%;
+    }
+
+    .settings-tabs {
+        display: flex;
+        overflow-x: auto;
+        gap: var(--space-xs);
+        padding: var(--space-xs);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-btn {
+        flex-shrink: 0;
+        padding: var(--space-sm) var(--space-md);
+        min-height: 44px;
+        font-size: 12px;
+    }
+
+    .settings-content {
+        padding: var(--space-sm);
+    }
+
+    /* Admin modal */
+    .admin-modal {
+        width: 95%;
+    }
+
+    .admin-tabs {
+        display: flex;
+        overflow-x: auto;
+        gap: var(--space-xs);
+        padding: var(--space-xs);
+    }
+
+    /* Formulaires */
+    .form-group {
+        margin-bottom: var(--space-md);
+    }
+
+    .form-group label {
+        font-size: 12px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        padding: var(--space-sm);
+        font-size: 16px; /* Empêche le zoom */
+    }
+
+    /* Boutons d'action */
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger {
+        min-height: 44px;
+        padding: var(--space-sm) var(--space-md);
+        font-size: 14px;
+    }
+}
+
+/* ============================================
+   MESSAGERIE PRIVÉE MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #private-messaging-panel {
+        top: 56px;
+        bottom: 56px;
+    }
+
+    .private-messaging-content {
+        flex-direction: column;
+    }
+
+    .private-conversations-sidebar {
+        width: 100%;
+        max-height: 40vh;
+        border-right: none;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .private-conversations-header {
+        padding: var(--space-sm);
+        min-height: 44px;
+    }
+
+    .private-conversations-list {
+        overflow-y: auto;
+    }
+
+    .private-conversation-item {
+        padding: var(--space-sm);
+        min-height: 56px;
+    }
+
+    .private-chat-area {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .private-chat-header {
+        padding: var(--space-sm);
+        min-height: 48px;
+    }
+
+    .private-chat-user-info {
+        gap: var(--space-sm);
+    }
+
+    #private-chat-avatar {
+        width: 36px;
+        height: 36px;
+    }
+
+    .private-chat-user-details {
+        gap: 2px;
+    }
+
+    #private-chat-username {
+        font-size: 14px;
+    }
+
+    #private-chat-status {
+        font-size: 11px;
+    }
+
+    .private-chat-actions {
+        gap: var(--space-xs);
+    }
+
+    .private-chat-actions button {
+        width: 44px;
+        height: 44px;
+        padding: var(--space-xs);
+    }
+
+    #private-messages-container {
+        padding: var(--space-sm);
+    }
+
+    .private-compose-area {
+        padding: var(--space-sm);
+    }
+
+    .private-input-wrapper {
+        gap: var(--space-xs);
+    }
+
+    #private-message-input {
+        min-height: 44px !important;
+        font-size: 16px;
+    }
+
+    .private-attach-btn,
+    .private-send-btn {
+        width: 44px !important;
+        height: 44px !important;
+    }
+
+    /* Fichiers privés */
+    .private-files-panel {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .private-files-header {
+        padding: var(--space-sm);
+        min-height: 44px;
+    }
+}
+
+/* ============================================
+   CONTEXT MENU MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #context-menu {
+        width: 90%;
+        max-width: 300px;
+        padding: var(--space-sm);
+    }
+
+    .context-menu-item {
+        padding: var(--space-sm) var(--space-md);
+        min-height: 44px;
+        font-size: 14px;
+        gap: var(--space-sm);
+    }
+
+    .context-menu-item svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .context-menu-divider {
+        margin: var(--space-xs) 0;
+    }
+}
+
+/* ============================================
+   NOTIFICATIONS TOAST MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    .toast-notification {
+        right: var(--space-sm);
+        left: var(--space-sm);
+        max-width: none;
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .toast-content {
+        gap: var(--space-sm);
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .toast-message {
+        font-size: 13px;
+    }
+
+    .toast-close {
+        width: 32px;
+        height: 32px;
+    }
+}
+
+/* ============================================
+   OVERLAY DE CHARGEMENT MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    #loading-overlay {
+        padding: var(--space-md);
+    }
+
+    .loader {
+        max-width: 200px;
+    }
+
+    .loader-text {
+        font-size: 24px;
+    }
+
+    .loader-bar {
+        height: 4px;
+    }
+}
+
+/* ============================================
+   PETITS ÉCRANS (< 480px)
+   ============================================ */
+@media screen and (max-width: 480px) {
+    /* Header ultra-compact */
+    #hud-header {
+        padding: 0 var(--space-xs);
+    }
+
+    .hud-right button,
+    .hud-right .btn-files,
+    .hud-right .btn-members,
+    .hud-right .btn-pins,
+    .hud-right .btn-notifications,
+    .hud-right .btn-panic,
+    .hud-right .btn-settings {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+    }
+
+    .user-avatar {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+    /* Messages compacts */
+    .message {
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+    }
+
+    .message-author {
+        font-size: 12px;
+    }
+
+    .message-text {
+        font-size: 13px;
+    }
+
+    /* Side panels */
+    .panel-header h3 {
+        font-size: 13px;
+    }
+
+    /* Boutons d'action */
+    .member-action-btn {
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    /* Menu burger */
+    #main-menu-overlay {
+        width: 90%;
+    }
+
+    .menu-item {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: 13px;
+    }
+}
+
+/* ============================================
+   CORRECTIONS SPÉCIFIQUES IPHONE
+   ============================================ */
+@supports (-webkit-touch-callout: none) {
+    @media screen and (max-width: 768px) {
+        /* Safe area pour iPhone X+ */
+        #hud-header {
+            padding-top: env(safe-area-inset-top);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        #dock-nav {
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* Empêche le scroll bounce */
+        body {
+            overscroll-behavior: none;
+        }
+
+        /* Support pour le mode paysage */
+        @media (orientation: landscape) {
+            #main-content {
+                top: 48px;
+                bottom: 48px;
+            }
+
+            #hud-header {
+                height: 48px;
+            }
+
+            #dock-nav {
+                height: 48px;
+            }
+        }
+    }
+}
+
+/* ============================================
+   ANIMATIONS TRANSITIONS
+   ============================================ */
+@media screen and (max-width: 768px) {
+    /* Transitions plus rapides sur mobile */
+    .side-panel,
+    .menu-overlay,
+    #main-menu-overlay {
+        transition: transform 0.2s ease-out;
+    }
+
+    /* Active states pour feedback tactile */
+    button:active,
+    .menu-item:active,
+    .channel-item:active,
+    .member-item:active {
+        transform: scale(0.98);
+    }
+
+    /* Masquage fluide des éléments desktop */
+    .hud-center,
+    .logo-text,
+    .user-name,
+    .user-role-badge {
+        transition: opacity 0.2s ease;
+    }
+}
+
+/* ============================================
+   UTILITAIRES RESPONSIVE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    /* Masquer sur mobile */
+    .hide-mobile {
+        display: none !important;
+    }
+
+    /* Afficher sur mobile uniquement */
+    .show-mobile-only {
+        display: flex !important;
+    }
+
+    /* Texte tronqué */
+    .truncate-mobile {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Grille colonne unique */
+    .mobile-single-column {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Padding réduit */
+    .mobile-pad-sm {
+        padding: var(--space-xs) !important;
+    }
+
+    .mobile-pad-md {
+        padding: var(--space-sm) !important;
+    }
+}
+
+/* ============================================
+   ACCESSIBILITÉ MOBILE
+   ============================================ */
+@media screen and (max-width: 768px) {
+    /* Focus visible pour navigation clavier */
+    *:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+    /* Zones tactiles suffisantes */
+    a,
+    button,
+    .clickable {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Contraste suffisant */
+    .message-text,
+    .member-name,
+    .channel-name {
+        color: var(--text-primary);
+    }
+
+    /* Espacement entre éléments tactiles */
+    .members-list .member-item,
+    .dock-channels .channel-item {
+        margin-bottom: var(--space-xs);
+    }
+}

@@ -5,24 +5,8 @@
  */
 
 // ============================================
-// HELPERS MUSTACHE PERSONNALISÉS
+// FORMATAGE ET UTILITAIRES
 // ============================================
-const MustacheHelpers = {
-    if_eq: function(a, b, options) {
-        return (a === b) ? options.fn(this) : options.inverse(this);
-    },
-    formatDate: function(dateStr) {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-};
 
 // ============================================
 // ÉTAT GLOBAL
@@ -101,16 +85,16 @@ const KRONOS = {
     
     // Initialisation
     init: async function() {
-        console.log('[KRONOS] === DÉBUT INITIALISATION ===');
-        
         try {
             this.applyThemePreference();
             // Récupérer les éléments DOM immédiatement
             this.cacheElements();
-            console.log('[KRONOS] Éléments DOM mis en cache');
             
             // Fermer tous les panneaux au démarrage
             this.closeAllPanels();
+            
+            // Initialiser le bouton scroll-to-bottom
+            this.initScrollToBottomButton();
             
             // Charger la config du Panic Mode
             await this.loadPanicConfig();
@@ -120,7 +104,6 @@ const KRONOS = {
             
             if (authStatus.authenticated) {
                 this.state.user = authStatus.user;
-                console.log('[KRONOS] Utilisateur connecté:', this.state.user.username, 'Rôle:', this.state.user.role);
                 if (authStatus.user && authStatus.user.mute_until) {
                     const ts = Date.parse(authStatus.user.mute_until);
                     if (!Number.isNaN(ts)) {
@@ -137,27 +120,49 @@ const KRONOS = {
                 this.showApp();
                 await this.initSocket();
                 await this.loadChannels();
-                 await this.loadDMConversations();
+                await this.loadDMConversations();
+                
+                // Attendre un peu que selectChannel soit terminé, puis charger les membres
+                setTimeout(async () => {
+                    if (this.state.currentChannel) {
+                        await this.loadMembers();
+                    } else {
+                        // Fallback : charger au moins l'utilisateur courant dans la liste
+                        const currentUser = {
+                            ...this.state.user,
+                            is_online: true,
+                            online: true,
+                            status: 'online'
+                        };
+                        this.renderMembersList([currentUser].filter(Boolean));
+                    }
+                }, 100);
                 
                 // Configurer les écouteurs APRÈS avoir vérifié l'authentification
                 this.setupEventListeners();
                 
-                // Charger les membres IMMÉDIATEMENT après l'initialisation
-                this.loadMembers();
+                // Pas de chargement automatique - à la demande uniquement
                 
-                // Configurer un intervalle pour vérifier la présence des utilisateurs
-                this.presenceInterval = setInterval(() => {
-                    this.refreshPresence();
-                }, 30000);  // Toutes les 30 secondes
-                
-                console.log('[KRONOS] === INITIALISATION TERMINÉE ===');
+                // Pas d'intervalle - architecture push uniquement
+
+                // Visibility API - pause si page cachée
+                if (typeof document.hidden !== 'undefined') {
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.hidden) {
+                            this.state.isPageVisible = false;
+                            this.pauseHeavyProcesses();
+                        } else {
+                            this.state.isPageVisible = true;
+                            this.resumeHeavyProcesses();
+                        }
+                    });
+                }
 
                 // Sync avec le SW pour les notifications non lues
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.addEventListener('message', (event) => {
                         if (event.data.type === 'UNREAD_LIST') {
                             this.state.unreadNotifications = event.data.notifications || [];
-                            console.log('[KRONOS] Sync notifications non lues:', this.state.unreadNotifications.length);
                         }
                     });
 
@@ -182,16 +187,16 @@ const KRONOS = {
     
     
     bindPinsUI: function() {
-        this.elements.pinsBtn?.addEventListener('click', () => this.openPinsPanel());
+        this.elements.pinsBtn?.addEventListener('click', () => this.togglePinsPanel());
         this.elements.closePins?.addEventListener('click', () => this.closePinsPanel());
     },
     
     // Mettre en cache les éléments DOM avec vérification de sécurité
     cacheElements: function() {
         // Fonction helper sécurisée pour récupérer un élément
-        const getEl = (id) => {
+        const getEl = (id, optional = false) => {
             const el = document.getElementById(id);
-            if (!el) {
+            if (!el && !optional) {
                 console.warn(`[KRONOS] Élément DOM non trouvé: #${id}`);
             }
             return el;
@@ -201,6 +206,7 @@ const KRONOS = {
             appContainer: getEl('app-container'),
             messagesContainer: getEl('messages-container'),
             chatViewport: getEl('chat-viewport'),
+            scrollToBottomBtn: getEl('scroll-to-bottom-btn'),
             dockChannels: getEl('dock-channels'),
             membersList: getEl('members-list'),
             filesList: getEl('files-list'),
@@ -218,9 +224,9 @@ const KRONOS = {
             statusBar: getEl('status-bar'),
             statusText: getEl('status-text'),
             
-            // Debug status bar
-            debugStatus: getEl('debug-status'),
-            statusMessage: getEl('status-message'),
+            // Debug status bar (optionnels)
+            debugStatus: getEl('debug-status', true),
+            statusMessage: getEl('status-message', true),
             
             // Inputs
             messageInput: getEl('message-input'),
@@ -298,7 +304,8 @@ const KRONOS = {
             // Main menu
             mainMenuBtn: getEl('main-menu-btn'),
             mainMenuOverlay: getEl('main-menu-overlay'),
-            closeMainMenu: getEl('close-main-menu')
+            closeMainMenu: getEl('close-main-menu'),
+            mobileBurgerBtn: getEl('mobile-burger-btn')
         };
         
         if (this.state && this.state.muteUntil) {
@@ -325,7 +332,10 @@ const KRONOS = {
 
     // Basculer le menu principal
     toggleMainMenu: function(show = null) {
-        if (!this.elements.mainMenuOverlay || !this.elements.mainMenuBtn) return;
+        if (!this.elements.mainMenuOverlay || !this.elements.mainMenuBtn) {
+            console.error('[KRONOS] Éléments manquants pour le menu principal');
+            return;
+        }
         
         const isActive = show !== null ? !show : this.elements.mainMenuOverlay.classList.contains('active');
         
@@ -367,6 +377,13 @@ const KRONOS = {
                     this.toggleMainMenu(false);
                 }
             });
+        }
+
+        // Mobile burger button toggle
+        if (this.elements.mobileBurgerBtn) {
+            this.elements.mobileBurgerBtn.addEventListener('click', () => this.toggleMainMenu());
+        } else {
+            console.log('[KRONOS] Élément mobile burger non trouvé (optionnel)');
         }
 
         // Raccourci clavier dynamique
@@ -470,10 +487,7 @@ const KRONOS = {
     },
 
     retrySWRegistration: function(attempt) {
-        if (attempt > 3) return;
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`[KRONOS] Retry SW registration attempt ${attempt} in ${delay}ms`);
-        setTimeout(() => this.registerServiceWorker(), delay);
+        // Pas de retry SW - trop lourd
     },
 
     showNotificationRequestUI: function() {
@@ -518,13 +532,13 @@ const KRONOS = {
                     this.registerServiceWorker();
                 }
                 toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
+                toast.remove();
             });
         };
         
         document.getElementById('deny-notif-btn').onclick = () => {
             toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
+            toast.remove();
         };
     },
 
@@ -616,11 +630,7 @@ const KRONOS = {
             channel_id: message.channel_id
         });
 
-        // Debounce pour éviter le spam sonore/visuel immédiat
-        if (this.notificationDebounceTimer) clearTimeout(this.notificationDebounceTimer);
-        this.notificationDebounceTimer = setTimeout(() => {
-            this.processNotifications(message);
-        }, 300);
+        // Pas de debounce - direct
     },
 
     processNotifications: function(lastMessage) {
@@ -639,9 +649,7 @@ const KRONOS = {
             this.showNotification(`Mention de ${lastMessage.author?.username}: ${lastMessage.content.substring(0, 50)}...`, 'info');
         }
 
-        // Effet visuel
-        document.body.classList.add('flash-mention');
-        setTimeout(() => document.body.classList.remove('flash-mention'), 500);
+        // Effet visuel direct
     },
 
     sendDesktopNotification: function(message) {
@@ -758,6 +766,13 @@ const KRONOS = {
              });
         }
         
+        // 3. Forcer Kroni dans les suggestions (priorité haute)
+        const kroni = this.state.allUsersMap ? Object.values(this.state.allUsersMap).find(u => u.username === 'Kroni') : null;
+        if (kroni && !seenIds.has(kroni.id) && 'kroni'.toLowerCase().includes(query.toLowerCase())) {
+            users.unshift(kroni); // Ajouter en premier
+            seenIds.add(kroni.id);
+        }
+        
         if (users.length === 0) {
             this.hideMentionList();
             return;
@@ -860,14 +875,11 @@ const KRONOS = {
         const overlay = document.getElementById('loading-overlay');
         if (!overlay) return;
         overlay.classList.add('hidden');
-        setTimeout(() => {
-            overlay.style.display = 'none';
-        }, 700);
+        overlay.style.display = 'none';
     },
     
     // Ajuster la hauteur du viewport chat
     adjustChatHeight: function() {
-        console.log('[KRONOS] Hauteur ajustée');
     },
     
     // Mettre à jour l'indicateur utilisateur
@@ -889,6 +901,9 @@ const KRONOS = {
             } else if (user.role === 'admin' || user.role === 'moderator') {
                 this.elements.userRoleBadge.textContent = 'A';
                 this.elements.userRoleBadge.className = 'user-role-badge';
+            } else if (user.role === 'IA') {
+                this.elements.userRoleBadge.textContent = 'IA';
+                this.elements.userRoleBadge.className = 'user-role-badge ia';
             } else {
                 this.elements.userRoleBadge.style.display = 'none';
             }
@@ -898,7 +913,7 @@ const KRONOS = {
     // Mettre à jour la barre de statut de débogage
     updateDebugStatus: function(type, message) {
         if (!this.elements.debugStatus || !this.elements.statusMessage) {
-            console.warn('[KRONOS] Éléments de debugStatus non trouvés');
+            // Silencieux pour les éléments optionnels
             return;
         }
         
@@ -910,17 +925,11 @@ const KRONOS = {
             minute: '2-digit', 
             second: '2-digit' 
         });
-        this.elements.statusMessage.textContent = `[${timestamp}] ${message}`;
         
         console.log(`[DEBUG ${type.toUpperCase()}] ${message}`);
         
         if (type === 'info') {
-            clearTimeout(this.debugTimeout);
-            this.debugTimeout = setTimeout(() => {
-                if (this.elements.debugStatus) {
-                    this.elements.debugStatus.classList.remove('debug-info', 'debug-success', 'debug-warning', 'debug-error');
-                }
-            }, 5000);
+            // Pas de timeout debug
         }
     },
     
@@ -945,20 +954,23 @@ const KRONOS = {
                 });
                 
                 this.socket.on('connect', () => {
-                    console.log('[KRONOS] Connecté au serveur, SID:', this.socket.id);
                     this.state.isConnected = true;
                     this.updateConnectionStatus(true);
                     this.updateDebugStatus('success', 'Connecté au serveur');
                     
-                    if (this.state.currentChannel) {
-                        this.socket.emit('join_channel', { channel_id: this.state.currentChannel.id });
-                        this.loadMessages(this.state.currentChannel.id);
-                    }
+                    // Attendre 500ms pour laisser le tunnel local s'ouvrir
+                    setTimeout(() => {
+                        if (this.state.currentChannel) {
+                            this.socket.emit('join_channel', { channel_id: this.state.currentChannel.id });
+                            this.loadMessages(this.state.currentChannel.id);
+                        }
+                        // Pas de loadMembers automatique - à la demande
+                    }, 500);
+                    
                     resolve();
                 });
                 
                 this.socket.on('disconnect', (reason) => {
-                    console.log('[KRONOS] Déconnecté:', reason);
                     this.state.isConnected = false;
                     this.updateConnectionStatus(false);
                     this.updateDebugStatus('error', `Déconnecté: ${reason}`);
@@ -978,9 +990,22 @@ const KRONOS = {
                 // Événements de l'application - avec vérification de sécurité
                 this.socket.on('new_message', (message) => {
                     try {
+                        console.log('[DEBUG] New message received:', message);
                         this.handleNewMessage(message);
                     } catch (e) {
                         console.error('[KRONOS] Erreur handleNewMessage:', e);
+                    }
+                });
+                
+                // Événement de confirmation pour messages Kroni
+                this.socket.on('kroni_user_confirmation', (data) => {
+                    try {
+                        console.log('[DEBUG] Kroni user confirmation received:', data);
+                        if (data.client_id && data.message) {
+                            this.confirmOptimisticMessage(data.client_id, data.message);
+                        }
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur kroni_user_confirmation:', e);
                     }
                 });
                 this.socket.on('channel_activity', (data) => {
@@ -1210,11 +1235,91 @@ const KRONOS = {
                     }
                 });
                 
+                this.socket.on('members_list_update', (data) => {
+                    try {
+                        this.handleMembersListUpdate(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleMembersListUpdate:', e);
+                    }
+                });
+                
+                this.socket.on('typing', (data) => {
+                    try {
+                        this.handleTyping(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleTyping:', e);
+                    }
+                });
+                
+                this.socket.on('stop_typing', (data) => {
+                    try {
+                        this.handleStopTyping(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleStopTyping:', e);
+                    }
+                });
+                
+                this.socket.on('message_pinned', (data) => {
+                    try {
+                        this.handleMessagePinned(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleMessagePinned:', e);
+                    }
+                });
+                
+                this.socket.on('message_unpinned', (data) => {
+                    try {
+                        this.handleMessageUnpinned(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleMessageUnpinned:', e);
+                    }
+                });
+                
+                this.socket.on('profile_update', (data) => {
+                    try {
+                        this.handleProfileUpdate(data);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur handleProfileUpdate:', e);
+                    }
+                });
+                
                 this.socket.on('error', (data) => {
                     try {
                         this.showNotification(data.message || 'Erreur du serveur', 'error');
                     } catch (e) {
                         console.error('[KRONOS] Erreur notification:', e);
+                    }
+                });
+                
+                // ============================================
+                // ÉVÉNEMENTS KRONI (IA)
+                // ============================================
+                this.socket.on('kroni_thinking', (data) => {
+                    try {
+                        console.log('[KRONOS] Kroni réfléchit...');
+                        this.showKroniThinking(data.channel_id);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur kroni_thinking:', e);
+                    }
+                });
+                
+                this.socket.on('kroni_response', (data) => {
+                    try {
+                        console.log('[KRONOS] Réponse Kroni reçue');
+                        this.hideKroniThinking();
+                        this.handleNewMessage(data.message);
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur kroni_response:', e);
+                    }
+                });
+                
+                this.socket.on('kroni_error', (data) => {
+                    try {
+                        console.error('[KRONOS] Erreur Kroni:', data.message);
+                        this.hideKroniThinking();
+                        this.showNotification('Erreur avec Kroni: ' + data.message, 'error');
+                    } catch (e) {
+                        console.error('[KRONOS] Erreur kroni_error:', e);
                     }
                 });
                 
@@ -1227,7 +1332,26 @@ const KRONOS = {
         });
     },
     
-    // Mettre à jour le statut de connexion
+    // Visibility API - Gestion des processus lourds
+    pauseHeavyProcesses: function() {
+        this.state.isPageVisible = false;
+        // Mettre en pause les animations et rendus lourds
+        if (this.elements.messagesContainer) {
+            this.elements.messagesContainer.style.willChange = 'auto';
+        }
+    },
+    
+    resumeHeavyProcesses: function() {
+        this.state.isPageVisible = true;
+        // Reprendre les animations et rendus
+        if (this.elements.messagesContainer) {
+            this.elements.messagesContainer.style.willChange = 'transform';
+        }
+        // Recharger les données critiques si nécessaire
+        if (this.state.currentChannel) {
+            this.loadMessages(this.state.currentChannel.id);
+        }
+    },
     updateConnectionStatus: function(connected) {
         if (this.elements.connectionStatus) {
             if (connected) {
@@ -1500,6 +1624,23 @@ const KRONOS = {
         this.state.dm.current = null;
         this.closePrivateConversation();
 
+        // Gérer l'animation de réflexion lors du changement de channel
+        const currentThinkingChannel = this.state.kroniThinkingChannel;
+        const previousChannelId = this.state.currentChannel?.id;
+        
+        // Si on quitte le channel où Kroni réfléchit, supprimer l'animation
+        if (currentThinkingChannel && previousChannelId && currentThinkingChannel !== channel.id) {
+            this.hideKroniThinking();
+        }
+        
+        // Si on revient dans le channel où Kroni réfléchit, restaurer l'animation
+        if (currentThinkingChannel && currentThinkingChannel === channel.id) {
+            const thinkingEl = document.getElementById('kroni-thinking');
+            if (!thinkingEl) {
+                this.showKroniThinking(currentThinkingChannel);
+            }
+        }
+        
         this.state.currentChannel = channel;
         // Remise à zéro des compteurs non-lus/mentions pour ce salon
         if (!this.state.channelUnread) this.state.channelUnread = {};
@@ -1532,6 +1673,9 @@ const KRONOS = {
         
         // Charger les messages
         this.loadMessages(channel.id);
+        
+        // Charger les membres du salon
+        this.loadMembers();
     },
     
     // Charger les messages d'un salon
@@ -1595,6 +1739,7 @@ const KRONOS = {
                 const serverIds = new Set(data.messages.map(m => m.id));
                 const uniquePending = pendingMessages.filter(m => !serverIds.has(m.id));
                 
+                // CORRECTION: Les messages viennent déjà triés ASC du backend, ne pas trier à nouveau
                 this.state.messages[channelId] = [...data.messages, ...uniquePending];
             }
             
@@ -1638,44 +1783,39 @@ const KRONOS = {
         
         container.innerHTML = '';
         
-        console.log('[KRONOS] renderMessages appelé avec', messages ? messages.length : 0, 'messages');
-        
         if (!messages || messages.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    <h3>Aucun message</h3>
-                    <p>Soyez le premier à écrire dans ce salon !</p>
+                    <p>Aucun message dans ce salon</p>
                 </div>
             `;
             return;
         }
         
-        // Créer un fragment pour optimiser les performances
+        // Optimisation: utiliser DocumentFragment pour éviter les reflows
         const fragment = document.createDocumentFragment();
         
         messages.forEach((message, index) => {
             try {
-                // console.log('[KRONOS] Création de l\'élément', index, '- ID:', message.id);
                 const element = this.createMessageElement(message);
                 if (element) {
                     fragment.appendChild(element);
                 }
-            } catch (error) {
-                console.error('[KRONOS] Erreur lors de la création de l\'élément de message:', error);
+            } catch (e) {
+                console.error('[KRONOS] Erreur création message:', e, message);
             }
         });
         
         container.appendChild(fragment);
         
-        if (maintainScroll) {
-            // Restaurer la position relative
-            const newHeight = container.scrollHeight;
-            container.scrollTop = newHeight - oldHeight + oldTop;
-        } else {
+        // Auto-scroll vers le bas lors du chargement initial
+        if (!maintainScroll) {
             this.scrollToBottom();
+        }
+        
+        // Maintenir la position du scroll si nécessaire
+        if (maintainScroll) {
+            container.scrollTop = container.scrollHeight;
         }
     },
     
@@ -1686,87 +1826,8 @@ const KRONOS = {
             return null;
         }
         
-        const templateEl = document.getElementById('message-template');
-        const useTemplate = templateEl && templateEl.textContent.trim();
-        
-        // Déterminer si c'est un message système
-        const isSystemMessage = message.type === 'system' || message.message_type === 'system';
-        
-        // Si pas de template ou message système, utiliser le fallback
-        if (!useTemplate || isSystemMessage) {
-            return this.createFallbackMessageElement(message);
-        }
-        
-        // Préparer les données pour Mustache
-        const renderData = {
-            id: message.id,
-            content: this.formatMessageContent(message.content),
-            time: this.formatTime(message.created_at),
-            is_edited: message.is_edited,
-            is_system: isSystemMessage,
-            // Utiliser les données les plus récentes pour l'auteur (rôle à jour)
-            author: isSystemMessage ? null : (message.author ? (() => {
-                const authorId = message.author.id || '';
-                // Récupérer le rôle et le statut le plus récents depuis allUsersMap
-                const latestUser = this.state.allUsersMap?.[authorId] || {};
-                const currentRole = latestUser.role || message.author.role || 'member';
-                const isBanned = this.state.bannedUsers?.some(u => u.id === authorId);
-                
-                const authorData = {
-                    id: authorId,
-                    username: message.author.username || '',
-                    display_name: message.author.display_name || message.author.username || 'Inconnu',
-                    avatar: message.author.avatar || '/static/icons/default_avatar.svg',
-                    role: currentRole,
-                    role_name: (function(r){switch(r){case 'supreme':return 'Admin Suprême';case 'admin':return 'Admin';case 'moderator':return 'Modérateur';default:return 'Membre';}})(currentRole),
-                    has_special_role: currentRole !== 'member',
-                    is_supreme: currentRole === 'supreme',
-                    is_admin: currentRole === 'admin' || currentRole === 'moderator',
-                    is_banned: isBanned
-                };
-                authorData.json = JSON.stringify(authorData);
-                return authorData;
-            })() : null),
-            can_edit: message.author?.id === this.state.user?.id || this.state.user?.is_admin,
-            can_delete: message.author?.id === this.state.user?.id || this.state.user?.is_admin,
-            reply_to: message.reply_to,
-            has_attachments: message.attachments && message.attachments.length > 0,
-            attachments: message.attachments?.map(att => ({
-                id: att.id,
-                url: att.url || `/api/files/${att.id}`,
-                original_filename: att.original_filename || att.name || att.filename || 'Fichier',
-                name: att.name || att.filename || att.original_filename || 'Fichier',
-                filename: att.filename || att.name || att.original_filename || 'Fichier',
-                type: att.type,
-                size: att.size, // Garder la taille originale pour le template
-                size_formatted: this.formatBytes(att.size || 0), // Version formatée pour l'affichage
-                is_image: att.type === 'image',
-                is_video: att.type === 'video',
-                is_audio: att.type === 'audio',
-                is_document: att.type === 'document',
-                is_file: att.type === 'file'
-            })),
-            attachments_html: (message.attachments && message.attachments.length > 0) ? this.renderAttachmentsHtml(message.attachments) : ''
-        };
-        
-        try {
-            const template = templateEl.textContent.trim();
-            const rendered = Mustache.render(template, renderData);
-            const div = document.createElement('div');
-            div.innerHTML = rendered;
-            const element = div.firstElementChild;
-            
-            if (!element) {
-                console.error('[KRONOS] Erreur lors de la création de l\'élément de message');
-                return this.createFallbackMessageElement(message);
-            }
-            
-            this.attachMessageListeners(element, message);
-            return element;
-        } catch (error) {
-            console.error('[KRONOS] Erreur lors du rendu Mustache:', error);
-            return this.createFallbackMessageElement(message);
-        }
+        // Utiliser le fallback natif
+        return this.createFallbackMessageElement(message);
     },
     
     // Créer un élément de message de fallback
@@ -1792,7 +1853,7 @@ const KRONOS = {
                         <span class="message-author system">Système</span>
                         <span class="message-time">${this.formatTime(message.created_at)}</span>
                     </div>
-                    <div class="message-body">${this.escapeHtml(message.content || '')}</div>
+                    <div class="message-body">${this.formatMessageContent(message.content || '')}</div>
                 </div>
             `;
         } else {
@@ -1801,9 +1862,20 @@ const KRONOS = {
             const authorIdSafe = message.author?.id || '';
             const latestUser = this.state.allUsersMap?.[authorIdSafe] || message.author || {};
             const currentRole = latestUser.role || 'member';
-            const roleLabel = (function(r){switch(r){case 'supreme':return 'Admin Suprême';case 'admin':return 'Admin';case 'moderator':return 'Modérateur';default:return 'Membre';}})(currentRole);
-            const roleBadge = `<span class="role-badge ${currentRole}">${roleLabel}</span>`;
+            const roleLabel = (function(r){switch(r){case 'supreme':return 'Admin Suprême';case 'admin':return 'Admin';case 'moderator':return 'Modérateur';case 'IA':return 'IA';default:return 'Membre';}})(currentRole);
+            const roleBadge = currentRole === 'IA' ? `<span class="role-badge ia">IA</span>` : `<span class="role-badge ${currentRole}">${roleLabel}</span>`;
             const banIndicator = isAuthorBanned ? '<span class="banned-indicator">🚫 Banni</span>' : '';
+            
+            // Générer l'HTML pour la réponse si présent
+            let replyHtml = '';
+            if (message.reply_to) {
+                const replyAuthor = message.reply_to.author ? (message.reply_to.author.display_name || message.reply_to.author.username || 'Inconnu') : 'Inconnu';
+                const replyContent = message.reply_to.content || (message.reply_to.attachments?.length ? '[Fichier]' : '');
+                replyHtml = `
+                <div class="reply-indicator" onclick="event.stopPropagation(); KRONOS.scrollToMessage('${message.reply_to.id}')" style="cursor: pointer; opacity: 0.8; font-size: 0.85em; margin-bottom: 4px; border-left: 2px solid var(--accent); padding-left: 6px;">
+                    <span class="reply-original">En réponse à <strong>${this.escapeHtml(replyAuthor)}</strong>: ${this.escapeHtml(replyContent)}</span>
+                </div>`;
+            }
             
             div.innerHTML = `
                 <div class="message-gutter">
@@ -1815,7 +1887,8 @@ const KRONOS = {
                         ${banIndicator}
                         <span class="message-time">${this.formatTime(message.created_at)}</span>
                     </div>
-                    <div class="message-body">${this.escapeHtml(message.content || '')}</div>
+                    ${replyHtml}
+                    <div class="message-body">${this.formatMessageContent(message.content || '')}</div>
                 </div>
             `;
             
@@ -1833,150 +1906,27 @@ const KRONOS = {
         return div;
     },
     
-    // Rendre les pièces jointes en HTML pour les messages
+    // Rendre les pièces jointes en HTML pour les messages (utilise la même structure que l'historique)
     renderAttachmentsHtml: function(attachments) {
         if (!attachments || attachments.length === 0) return '';
         
-        let html = '<div class="message-attachments">';
+        let html = '<div class="message-attachments files-grid">';
         
         attachments.forEach(att => {
-            const url = att.url || `/api/files/${att.id}`;
-            const filename = att.original_filename || att.name || att.filename || 'Fichier';
-            const fileSize = this.formatBytes(att.size || 0);
+            // Convertir les données pour correspondre au format de renderFileItem
+            const fileData = {
+                id: att.id,
+                original_filename: att.original_filename || att.name || att.filename || 'Fichier',
+                filename: att.filename || att.name || 'Fichier',
+                type: att.type || 'document',
+                size: att.size || 0,
+                created_at: att.created_at,
+                url: att.url || `/uploads/files/${att.id}`,
+                uploader: att.uploader
+            };
             
-            if (att.type === 'image') {
-                html += `
-                    <div class="attachment image" data-file-id="${att.id}">
-                        <div class="attachment-image-wrapper">
-                            <img src="${url}" alt="${this.escapeHtml(filename)}" class="attachment-preview" loading="lazy" onclick="KRONOS.previewFile('${att.id}', 'image')">
-                            <div class="attachment-overlay">
-                                <button class="attachment-view-btn" onclick="KRONOS.previewFile('${att.id}', 'image')">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                        <circle cx="12" cy="12" r="3"/>
-                                    </svg>
-                                    Aperçu
-                                </button>
-                                <a href="${url}" download="${this.escapeHtml(filename)}" class="attachment-download-btn" title="Télécharger">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="attachment-filename">${this.escapeHtml(filename)}</div>
-                    </div>
-                `;
-            } else if (att.type === 'video') {
-                html += `
-                    <div class="attachment video" data-file-id="${att.id}">
-                        <div class="attachment-video-wrapper">
-                            <video src="${url}" preload="metadata" class="attachment-preview" onclick="KRONOS.previewFile('${att.id}', 'video')"></video>
-                            <div class="attachment-overlay">
-                                <button class="attachment-view-btn" onclick="KRONOS.previewFile('${att.id}', 'video')">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polygon points="5 3 19 12 5 21 5 3"/>
-                                    </svg>
-                                    Lecture
-                                </button>
-                                <a href="${url}" download="${this.escapeHtml(filename)}" class="attachment-download-btn" title="Télécharger">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="attachment-filename">${this.escapeHtml(filename)}</div>
-                    </div>
-                `;
-            } else if (att.type === 'audio') {
-                html += `
-                    <div class="attachment audio" data-file-id="${att.id}">
-                        <div class="audio-player">
-                            <button class="play-btn" onclick="this.nextElementSibling.play(); this.style.display='none'; this.nextElementSibling.nextElementSibling.style.display='flex';">▶</button>
-                            <audio src="${url}" preload="metadata"></audio>
-                            <button class="play-btn active" style="display:none;" onclick="this.parentElement.querySelector('audio').pause(); this.parentElement.querySelector('.play-btn').style.display='flex'; this.style.display='none';">⏸</button>
-                            <div class="audio-info">
-                                <span class="filename">${this.escapeHtml(filename)}</span>
-                                <span class="audio-meta">${fileSize}</span>
-                            </div>
-                            <a href="${url}" download="${this.escapeHtml(filename)}" class="audio-download" title="Télécharger">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                            </a>
-                        </div>
-                    </div>
-                `;
-            } else if (att.type === 'document') {
-                html += `
-                    <div class="attachment document" data-file-id="${att.id}" onclick="KRONOS.previewFile('${att.id}', 'document')">
-                        <div class="document-preview">
-                            <div class="document-icon">
-                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                    <line x1="16" y1="13" x2="8" y2="13"/>
-                                    <line x1="16" y1="17" x2="8" y2="17"/>
-                                </svg>
-                            </div>
-                            <div class="document-info">
-                                <span class="document-name">${this.escapeHtml(filename)}</span>
-                                <span class="document-meta">${fileSize}</span>
-                            </div>
-                            <div class="document-actions">
-                                <button class="document-action-btn" title="Ouvrir">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                                        <polyline points="15 3 21 3 21 9"/>
-                                        <line x1="10" y1="14" x2="21" y2="3"/>
-                                    </svg>
-                                </button>
-                                <a href="${url}" download="${this.escapeHtml(filename)}" class="document-action-btn" title="Télécharger">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Fichier générique
-                html += `
-                    <div class="attachment file" data-file-id="${att.id}" onclick="KRONOS.previewFile('${att.id}', '${att.type || 'file'}')">
-                        <div class="file-preview">
-                            <div class="file-icon-wrapper">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                    <polyline points="13 2 13 9 20 9"/>
-                                </svg>
-                            </div>
-                            <div class="file-info">
-                                <span class="file-name">${this.escapeHtml(filename)}</span>
-                                <span class="file-meta">${fileSize}</span>
-                            </div>
-                            <div class="file-actions">
-                                <a href="${url}" download="${this.escapeHtml(filename)}" class="file-action-btn" title="Télécharger">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+            // Utiliser exactement la même fonction que l'historique
+            html += this.renderFileItem(fileData);
         });
         
         html += '</div>';
@@ -2198,6 +2148,17 @@ const KRONOS = {
         this.elements.pinsPanel?.classList.remove('open');
     },
     
+    togglePinsPanel: function() {
+        if (!this.elements.pinsPanel) return;
+        const isOpen = this.elements.pinsPanel.classList.contains('open');
+        if (isOpen) {
+            this.closePinsPanel();
+        } else {
+            this.closeAllPanels();
+            this.openPinsPanel();
+        }
+    },
+    
     loadPinsList: async function() {
         const channelId = this.state.currentChannel?.id;
         if (!channelId || !this.elements.pinsList) return;
@@ -2412,7 +2373,7 @@ const KRONOS = {
                     <div class="private-message-content">
                         ${replyHtml}
                         <div class="private-message-author">${this.escapeHtml(name)}</div>
-                        <div class="private-message-bubble">${this.escapeHtml(message.content || '')}</div>
+                        <div class="private-message-bubble">${this.formatMessageContent(message.content || '')}</div>
                         <div class="private-message-meta">
                             <span class="private-message-time">${time}</span>
                         </div>
@@ -3192,7 +3153,7 @@ const KRONOS = {
                     <img class="private-message-avatar" src="${avatar}" alt="">
                     <div class="private-message-content">
                         <div class="private-message-author">${this.escapeHtml(name)}</div>
-                        <div class="private-message-bubble">${this.escapeHtml(message.content || '')}</div>
+                        <div class="private-message-bubble">${this.formatMessageContent(message.content || '')}</div>
                         <div class="private-message-meta">
                             <span class="private-message-time">${time}</span>
                         </div>
@@ -3289,6 +3250,40 @@ const KRONOS = {
         }
     },
     
+    // Mettre à jour l'aperçu d'une conversation
+    updateConversationPreview: function(channelId, lastMessage) {
+        if (!this.state.dm || !Array.isArray(this.state.dm.conversations)) return;
+        
+        // Convertir channelId en nombre pour la comparaison
+        const numericChannelId = channelId ? parseInt(channelId, 10) : null;
+        const convIndex = this.state.dm.conversations.findIndex(c => c.channel && c.channel.id === numericChannelId);
+        if (convIndex !== -1) {
+            const conv = this.state.dm.conversations[convIndex];
+            conv.last_message = lastMessage;
+            
+            // Mettre à jour l'aperçu dans le DOM
+            const convElement = document.querySelector(`[data-channel-id="${numericChannelId}"]`);
+            if (convElement) {
+                const previewElement = convElement.querySelector('.conversation-preview');
+                const timeElement = convElement.querySelector('.conversation-time');
+                
+                if (previewElement) {
+                    if (lastMessage && lastMessage.content) {
+                        previewElement.textContent = lastMessage.content;
+                    } else if (lastMessage) {
+                        previewElement.textContent = '[Message sans contenu]';
+                    } else {
+                        previewElement.textContent = 'Aucun message';
+                    }
+                }
+                
+                if (timeElement && lastMessage) {
+                    timeElement.textContent = this.formatTime(lastMessage.created_at);
+                }
+            }
+        }
+    },
+    
     // Gérer la suppression d'un message
     handleMessageDeleted: function(data) {
         if (!data || !data.message_id) return;
@@ -3329,8 +3324,10 @@ const KRONOS = {
         // 4) Si c'est un DM: corriger l'aperçu (last_message)
         if (this.state.dm && Array.isArray(this.state.dm.conversations)) {
             let cidx = -1;
-            if (channelId) {
-                cidx = this.state.dm.conversations.findIndex(c => c.channel && c.channel.id === channelId);
+            // Convertir channelId en nombre pour la comparaison
+            const numericChannelId = channelId ? parseInt(channelId, 10) : null;
+            if (numericChannelId) {
+                cidx = this.state.dm.conversations.findIndex(c => c.channel && c.channel.id === numericChannelId);
             }
             if (cidx === -1) {
                 cidx = this.state.dm.conversations.findIndex(c => c.last_message && c.last_message.id === msgId);
@@ -3343,17 +3340,14 @@ const KRONOS = {
                     if (arr2 && arr2.length > 0) {
                         nextLast = arr2[arr2.length - 1];
                     }
-                    // Fallback: recharger si on n'a pas le cache
-                    if (!nextLast) {
-                        this.loadMessages(channelId).then(() => {
-                            const fresh = this.state.messages[channelId] || [];
-                            conv.last_message = fresh.length > 0 ? fresh[fresh.length - 1] : null;
-                            this.renderDMConversations();
-                        });
-                    } else {
-                        conv.last_message = nextLast;
+                    // TOUJOURS recharger les messages après suppression DM pour garantir la cohérence
+                    this.loadMessages(channelId).then(() => {
+                        const fresh = this.state.messages[channelId] || [];
+                        conv.last_message = fresh.length > 0 ? fresh[fresh.length - 1] : null;
                         this.renderDMConversations();
-                    }
+                        // Forcer la mise à jour de l'aperçu immédiatement
+                        this.updateConversationPreview(channelId, conv.last_message);
+                    });
                 }
                 const wasOpen = this.state.dm.current?.channel?.id === channelId;
                 if (!wasOpen && removedMessage && removedMessage.author?.id !== this.state.user?.id && conv.unread_count > 0) {
@@ -3475,7 +3469,7 @@ const KRONOS = {
             this.state.onlineUsers.add(user.id);
             console.log('[KRONOS] Utilisateur connecté:', user.username, '- ID:', user.id);
             this.updateUserStatus(user.id, true);
-            this.loadMembers();
+            // Mise à jour via push serveur - pas d'appel direct
         }
     },
     
@@ -3485,7 +3479,7 @@ const KRONOS = {
             this.state.onlineUsers.delete(data.user_id);
             console.log('[KRONOS] Utilisateur déconnecté:', data.user_id);
             this.updateUserStatus(data.user_id, false);
-            this.loadMembers();
+            // Mise à jour via push serveur - pas d'appel direct
         }
     },
     
@@ -3493,7 +3487,7 @@ const KRONOS = {
     updateUserStatus: function(userId, isOnline) {
         console.log(`[KRONOS] updateUserStatus: userId=${userId}, isOnline=${isOnline}`);
         
-        // Cibler .member-status-indicator (utilisé dans buildMemberItem)
+        // Cibler .member-status-indicator (utilisé dans renderMemberItem)
         const memberElements = document.querySelectorAll('.member-item[data-user-id]');
         memberElements.forEach(el => {
             if (el.dataset.userId === userId) {
@@ -3540,7 +3534,7 @@ const KRONOS = {
             this.socket.emit('ping');
             
             // Demander la liste mise à jour des membres
-            this.loadMembers();
+            // Mise à jour via push serveur - pas d'appel direct
         }
     },
     
@@ -3584,177 +3578,311 @@ const KRONOS = {
         this.showNotification(data.message, 'success');
         console.log('[KRONOS] Action admin:', data.action, 'sur', data.target_user?.username);
         
-        // Recharger la liste des membres
-        this.loadMembers();
+        // Mettre à jour le cache local avec les nouvelles données utilisateur
+        if (data.target_user && this.state.allUsersMap) {
+            this.state.allUsersMap[data.target_user.id] = {
+                ...this.state.allUsersMap[data.target_user.id],
+                ...data.target_user
+            };
+            
+            console.log('[KRONOS] target_user.role:', data.target_user.role);
+            console.log('[KRONOS] profileOverlayUserId:', this.state.profileOverlayUserId);
+            
+            // Mettre à jour le rôle dans la liste des membres affichée
+            this.updateMemberRoleInDOM(data.target_user.id, data.target_user.role);
+        }
+        
+        // Rafraîchir le profil si ouvert
+        if (data.target_user?.id === this.state.profileOverlayUserId) {
+            console.log('[KRONOS] Appel refreshProfileOverlay pour:', data.target_user.username);
+            this.refreshProfileOverlay();
+        }
     },
     
-    // Rafraîchir le profil ouvert en temps réel
-    refreshProfileOverlay: function() {
+    // Mettre à jour le rôle d'un membre dans le DOM sans recharger toute la liste
+    updateMemberRoleInDOM: function(userId, newRole) {
+        // Trouver l'élément du membre dans la liste
+        const memberItem = document.querySelector(`.member-item[data-user-id="${userId}"]`);
+        if (!memberItem) return;
+        
+        // Mettre à jour le badge de rôle
+        const roleLabels = {
+            supreme: 'SUPREME',
+            admin: 'ADMIN',
+            moderator: 'MOD',
+            member: ''
+        };
+        
+        const roleLabel = roleLabels[newRole] || '';
+        const existingBadge = memberItem.querySelector('.member-role-badge');
+        
+        if (existingBadge) {
+            if (roleLabel) {
+                existingBadge.className = `member-role-badge ${newRole}`;
+                existingBadge.textContent = roleLabel;
+            } else {
+                existingBadge.remove();
+            }
+        } else if (roleLabel) {
+            const nameRow = memberItem.querySelector('.member-name-row');
+            if (nameRow) {
+                const badge = document.createElement('span');
+                badge.className = `member-role-badge ${newRole}`;
+                badge.textContent = roleLabel;
+                nameRow.appendChild(badge);
+            }
+        }
+        
+        console.log('[KRONOS] Rôle mis à jour dans DOM pour:', userId, '->', newRole);
+    },
+    
+    // Rafraîchir le profil ouvert en temps réel - régénère complètement le HTML comme au chargement initial
+    refreshProfileOverlay: async function() {
+        console.log('[KRONOS] refreshProfileOverlay appelé, profileOverlayUserId:', this.state.profileOverlayUserId);
+        
         if (!this.state.profileOverlayUserId) return;
         
         const overlay = document.getElementById('profile-overlay');
         if (!overlay || !overlay.classList.contains('open')) return;
         
-        // Récupérer les données les plus récentes de l'utilisateur
-        const user = this.state.allUsersMap?.[this.state.profileOverlayUserId];
-        if (!user) return;
-        
-        console.log('[KRONOS] Rafraîchissement du profil pour:', user.username);
-        
-        // Mettre à jour le rôle et les boutons
-        const roleEl = overlay.querySelector('.profile-modal-role');
-        const actionsEl = overlay.querySelector('.profile-admin-actions');
-        
-        if (roleEl) {
-            const roleTranslations = {
-                'supreme': 'Admin Suprême',
-                'admin': 'Administrateur',
-                'moderator': 'Modérateur',
-                'member': 'Membre'
-            };
-            const roleIcons = {
-                'supreme': '👑',
-                'admin': '⭐',
-                'moderator': '🛡️',
-                'member': '👤'
-            };
-            const roleLabel = roleTranslations[user.role] || 'Membre';
-            const roleIcon = roleIcons[user.role] || '👤';
-            
-            roleEl.className = `profile-modal-role ${user.role || 'member'}`;
-            roleEl.innerHTML = `<span class="role-icon">${roleIcon}</span> ${roleLabel}`;
+        // Recharger les données réelles depuis l'API
+        let user = this.state.allUsersMap?.[this.state.profileOverlayUserId];
+        if (!user) {
+            console.log('[KRONOS] user non trouvé dans allUsersMap');
+            return;
         }
         
-        if (actionsEl) {
-            // Reconstruire les boutons admin basés sur le nouveau rôle
-            const isSelf = user.id === this.state.user?.id;
-            const isAdmin = this.state.user?.role === 'admin' || this.state.user?.role === 'supreme';
-            
-            if (!isAdmin || isSelf) {
-                actionsEl.innerHTML = '';
-            } else {
-                // Reconstruire les boutons selon le rôle actuel
-                const isTargetAdmin = user.role === 'admin' || user.role === 'supreme';
-                const isTargetModerator = user.role === 'moderator';
-                
-                actionsEl.innerHTML = `
-                    <div class="profile-admin-actions">
-                        ${!isTargetAdmin ? `
-                            <button class="btn-action btn-action-promote" data-user-id="${user.id}" data-action="promote" title="Promouvoir Admin">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                                    <path d="M2 17l10 5 10-5"/>
-                                    <path d="M2 12l10 5 10-5"/>
-                                </svg>
-                                Promouvoir
-                            </button>
-                        ` : user.role === 'moderator' ? `
-                            <button class="btn-action btn-action-promote" data-user-id="${user.id}" data-action="promote" title="Promouvoir Admin">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                                    <path d="M2 17l10 5 10-5"/>
-                                    <path d="M2 12l10 5 10-5"/>
-                                </svg>
-                                Promouvoir
-                            </button>
-                        ` : ''}
-                        ${isTargetAdmin || isTargetModerator ? `
-                            <button class="btn-action btn-action-demote" data-user-id="${user.id}" data-action="demote" title="Retrograder">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M2 12l10 5 10-5"/>
-                                </svg>
-                                Retrograder
-                            </button>
-                        ` : ''}
-                        ${!user.is_active ? `
-                            <button class="btn-action btn-action-unban" data-user-id="${user.id}" data-action="unban" title="Débannir">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                                    <circle cx="8.5" cy="7" r="4"/>
-                                    <polyline points="17 11 19 13 23 9"/>
-                                </svg>
-                                Débannir
-                            </button>
-                        ` : `
-                            <button class="btn-action btn-action-kick" data-user-id="${user.id}" data-action="kick" title="Expulser">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M18 6L6 18M6 6l12 12"/>
-                                </svg>
-                                Expulser
-                            </button>
-                            <button class="btn-action btn-action-ban" data-user-id="${user.id}" data-action="ban" title="Bannir">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                                </svg>
-                                Bannir
-                            </button>
-                        `}
-                        ${!user.is_shadowbanned ? `
-                            <button class="btn-action btn-action-shadowban" data-user-id="${user.id}" data-action="shadowban" title="Shadowban">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M17.5 6.5C17.5 6.5 19 8 19 10.5C19 13 17.5 15 15 15"/>
-                                    <path d="M3 3L21 21"/>
-                                    <path d="M9.5 9.5C9.5 9.5 8 11 8 13.5C8 16 9.5 18 12 18"/>
-                                </svg>
-                                Shadowban
-                            </button>
-                        ` : `
-                            <button class="btn-action btn-action-unshadowban" data-user-id="${user.id}" data-action="unshadowban" title="Retirer shadowban">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M17.5 6.5C17.5 6.5 19 8 19 10.5C19 13 17.5 15 15 15"/>
-                                </svg>
-                                De-shadowban
-                            </button>
-                        `}
-                    </div>
-                `;
-                
-                // Réinstaller les écouteurs sur les nouveaux boutons
-                actionsEl.querySelectorAll('.btn-action').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const action = btn.dataset.action;
-                        const userId = btn.dataset.userId;
-                        
-                        switch (action) {
-                            case 'promote':
-                                if (confirm('Promouvoir cet utilisateur au rang Admin ?')) {
-                                    this.promoteUser(userId);
-                                }
-                                break;
-                            case 'demote':
-                                if (confirm('Retrograder cet utilisateur au rang Membre ?')) {
-                                    this.demoteUser(userId);
-                                }
-                                break;
-                            case 'kick':
-                                const kickUrl = prompt('URL de redirection (laissez vide pour /login):', '/login');
-                                if (kickUrl === null) return;
-                                const kickReason = prompt('Raison de l\'expulsion (optionnel):', '');
-                                if (kickReason === null) kickReason = '';
-                                this.kickUser(userId, kickUrl, kickReason);
-                                break;
-                            case 'ban':
-                                const reason = prompt('Raison du bannissement:');
-                                this.banUser(userId, reason);
-                                break;
-                            case 'unban':
-                                if (confirm('Debannir cet utilisateur ?')) {
-                                    this.unbanUser(userId);
-                                }
-                                break;
-                            case 'shadowban':
-                                this.toggleShadowban(userId);
-                                break;
-                            case 'unshadowban':
-                                this.toggleShadowban(userId);
-                                break;
-                        }
-                    });
-                });
+        console.log('[KRONOS] user avant API:', user.role);
+        
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}`, { credentials: 'same-origin' });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.user) {
+                    user = data.user;
+                    this.state.allUsersMap[user.id] = user;
+                    console.log('[KRONOS] user après API:', user.role);
+                }
             }
+        } catch (e) {
+            console.error('[KRONOS] Erreur refresh profil:', e);
         }
+        
+        console.log('[KRONOS] Régénération complète du profil pour:', user.username, 'rôle:', user.role);
+        
+        // Sauvegarder les données du profil actuel pour ne pas les perdre
+        const currentUserData = this.state.profileOverlayUserData;
+        
+        // Régénérer complètement le HTML du profil comme au chargement initial
+        // On utilise les mêmes fonctions que showUserProfile
+        const lastSeen = user.last_seen ? this.formatLastSeen(user.last_seen) : 'Inconnue';
+        const joinDate = this.formatJoinDate(user.created_at);
+        
+        const roleTranslations = {
+            'supreme': 'Admin Suprême',
+            'admin': 'Administrateur',
+            'moderator': 'Modérateur',
+            'IA': 'IA',
+            'member': 'Membre'
+        };
+        // Pour Kroni, afficher "IA" au lieu de "Membre"
+        const isKroniProfile = user.username === 'Kroni' || user.role === 'IA';
+        const roleLabel = isKroniProfile ? 'IA' : (roleTranslations[user.role] || 'Membre');
+        
+        const roleIcons = {
+            'supreme': '👑',
+            'admin': '⭐',
+            'moderator': '🛡️',
+            'IA': '🤖',
+            'member': '👤'
+        };
+        const roleIcon = isKroniProfile ? '🤖' : (roleIcons[user.role] || '👤');
+        
+        const avatarUrl = user.avatar || '/static/icons/default_avatar.svg';
+        const bannerUrl = user.banner || null;
+        const displayName = user.display_name || user.username || 'Utilisateur';
+        const username = user.username || 'N/A';
+        const isMuted = !!user.mute_until && Date.parse(user.mute_until) > Date.now();
+        
+        const isOnline = this.state.onlineUsers.has(user.id);
+        const statusText = isOnline ? 'En ligne' : lastSeen;
+        const statusClass = isOnline ? 'online' : 'offline';
+        
+        // Générer le HTML complet du profil (identique à showUserProfile)
+        overlay.innerHTML = `
+            <div class="profile-modal" onclick="event.stopPropagation()">
+                <div class="profile-modal-header">
+                    ${bannerUrl ? `<div class="profile-modal-banner" data-banner-url="${bannerUrl}"></div>` : ''}
+                    <button class="profile-modal-close" id="profile-modal-close-btn">×</button>
+                    <div class="profile-modal-avatar">
+                        <img src="${avatarUrl}" alt="Avatar de ${this.escapeHtml(displayName)}" onerror="this.src='/static/icons/default_avatar.svg'">
+                    </div>
+                    <div class="profile-status-indicator ${statusClass}"></div>
+                </div>
+                <div class="profile-modal-body">
+                    <div class="profile-modal-name">${this.escapeHtml(displayName)}</div>
+                    <div class="profile-modal-username">@${this.escapeHtml(username)}</div>
+                    <div class="profile-modal-role ${user.role || 'member'}">
+                        <span class="role-icon">${roleIcon}</span>
+                        ${roleLabel}
+                    </div>
+                    ${user.bio ? `<div class="profile-modal-bio">${this.escapeHtml(user.bio)}</div>` : '<div class="profile-modal-bio" style="font-style: italic; color: var(--text-muted);">Aucune biographie</div>'}
+                    
+                    <div class="profile-modal-info">
+                        <div class="info-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            <span>Inscrit le ${joinDate}</span>
+                        </div>
+                        <div class="info-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span>${statusText}</span>
+                        </div>
+                        <div class="info-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <span>ID: ${user.id}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-modal-stats">
+                        <div class="profile-modal-stat">
+                            <div class="profile-modal-stat-value">${roleIcon}</div>
+                            <div class="profile-modal-stat-label">Rôle</div>
+                        </div>
+                        <div class="profile-modal-stat">
+                            <div class="profile-modal-stat-value">${joinDate.split(' ')[0].replace(',', '')}</div>
+                            <div class="profile-modal-stat-label">Inscrit</div>
+                        </div>
+                        <div class="profile-modal-stat">
+                            <div class="profile-modal-stat-value">${isOnline ? '●' : '○'}</div>
+                            <div class="profile-modal-stat-label">Statut</div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-modal-actions">
+                        ${user.id !== this.state.user?.id ? `
+                            <button class="btn-action" data-user-id="${user.id}" data-action="message" title="Discuter en privé">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                Discuter en privé
+                            </button>
+                        ` : ''}
+                        
+                        // Déterminer si c'est Kroni (IA)
+                        const isKroniProfile = user.username === 'Kroni' || user.role === 'IA';
+                        
+                        <!-- Boutons Admin (même logique que chargement initial) -->
+                        ${(this.state.user?.role === 'admin' || this.state.user?.role === 'supreme') && user.id !== this.state.user?.id && !isKroniProfile ? `
+                            <div class="profile-admin-actions">
+                                ${user.role === 'supreme' ? `
+                                    <button class="btn-action btn-action-unadmin" data-user-id="${user.id}" data-action="unadmin" title="Retirer droits Admin">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                                            <line x1="12" y1="2" x2="12" y2="12"/>
+                                        </svg>
+                                        Retirer Admin
+                                    </button>
+                                ` : (user.role === 'admin' || user.role === 'moderator') ? `
+                                    <button class="btn-action btn-action-demote" data-user-id="${user.id}" data-action="demote" title="Retrograder en membre">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                            <path d="M2 17l10 5 10-5"/>
+                                            <path d="M2 12l10 5 10-5"/>
+                                        </svg>
+                                        Retrograder
+                                    </button>
+                                ` : `
+                                    <button class="btn-action btn-action-promote" data-user-id="${user.id}" data-action="promote" title="Promouvoir Admin">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                            <path d="M2 17l10 5 10-5"/>
+                                            <path d="M2 12l10 5 10-5"/>
+                                        </svg>
+                                        Promouvoir
+                                    </button>
+                                `}
+                                ${user.is_active === false || user.is_banned ? `
+                                    <button class="btn-action btn-action-unban" data-user-id="${user.id}" data-action="unban" title="Débannir">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                            <circle cx="8.5" cy="7" r="4"/>
+                                            <polyline points="17 11 19 13 23 9"/>
+                                        </svg>
+                                        Débannir
+                                    </button>
+                                ` : `
+                                    <button class="btn-action btn-action-kick" data-user-id="${user.id}" data-action="kick" title="Expulser">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M18 6L6 18M6 6l12 12"/>
+                                        </svg>
+                                        Expulser
+                                    </button>
+                                    <button class="btn-action btn-action-ban" data-user-id="${user.id}" data-action="ban" title="Bannir">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                                        </svg>
+                                        Bannir
+                                    </button>
+                                `}
+                                ${isMuted ? `
+                                    <button class="btn-action btn-action-unmute" data-user-id="${user.id}" data-action="unmute" title="Retirer le mute">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M9 9v6l-2 2V7l2 2z"/>
+                                            <path d="M13 9v6a4 4 0 0 0 4 4"/>
+                                            <line x1="3" y1="3" x2="21" y2="21"/>
+                                        </svg>
+                                        Démute
+                                    </button>
+                                ` : `
+                                    <button class="btn-action btn-action-mute" data-user-id="${user.id}" data-action="mute" title="Mute temporaire">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M9 9v6l-2 2V7l2 2z"/>
+                                            <path d="M13 9v6a4 4 0 0 0 4 4"/>
+                                            <path d="M19 10a4 4 0 0 0-4-4"/>
+                                        </svg>
+                                        Mute
+                                    </button>
+                                `}
+                                ${!user.is_shadowbanned ? `
+                                    <button class="btn-action btn-action-shadowban" data-user-id="${user.id}" data-action="shadowban" title="Shadowban">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M17.5 6.5C17.5 6.5 19 8 19 10.5C19 13 17.5 15 15 15C12.5 15 11 13 11 11C11 8.5 12.5 6.5 15 6.5"/>
+                                            <path d="M3 3L21 21"/>
+                                        </svg>
+                                        Shadowban
+                                    </button>
+                                ` : `
+                                    <button class="btn-action btn-action-unshadowban" data-user-id="${user.id}" data-action="unshadowban" title="Retirer Shadowban">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                        Retirer Shadowban
+                                    </button>
+                                `}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Réattacher les écouteurs d'événements
+        this.attachProfileEventListeners();
+        
+        console.log('[KRONOS] Profil régénéré avec succès');
     },
     
     // Gérer le changement de rôle d'un utilisateur
@@ -3791,7 +3919,7 @@ const KRONOS = {
         this.hideContextMenu();
         
         // Recharger la liste des membres pour mettre à jour l'interface
-        this.loadMembers();
+        // Mise à jour via push serveur - pas d'appel direct
     },
     
     // Gérer les messages shadowbannis (pour les admins)
@@ -3814,21 +3942,18 @@ const KRONOS = {
     handleUserBanned: function(data) {
         this.showNotification(`@${data.username} a été banni par ${data.banned_by}`, 'info');
         console.log('[KRONOS] Utilisateur banni:', data.username);
-        this.loadMembers();  // Recharger la liste des membres
+        // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste des membres
     },
     
     // Gérer la notification qu'un utilisateur a été débanni (pour les autres utilisateurs)
     handleUserUnbanned: function(data) {
         this.showNotification(`@${data.username} a été rétabli par ${data.unbanned_by}`, 'success');
         console.log('[KRONOS] Utilisateur rétabli:', data.username);
-        this.loadMembers();  // Recharger la liste des membres
+        // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste des membres
     },
     
-    // Gérer la liste des membres (nouveau format avec onglets)
+    // Gérer la liste des membres (nouveau format avec onglets) - PUSH ONLY
     handleMembersList: function(data) {
-        console.log('[KRONOS] Liste des membres reçue:', data.members?.length, 'membres,', 
-                    data.banned?.length, 'bannis,', data.shadowbanned?.length, 'shadowbannis');
-        
         // Stocker les données pour affichage
         this.state.members = data.members || [];
         this.state.bannedUsers = data.banned || [];
@@ -3845,30 +3970,13 @@ const KRONOS = {
             this.state.allUsersMap[u.id] = u;
         });
         
-        // Recharger l'affichage des membres
-        this.renderMembersWithTabs(data);
+        // Mettre à jour l'affichage avec la fonction unifiée
+        this.renderMembersList(data.members || []);
     },
     
-    // Afficher les membres et bannis avec onglets
-    renderMembersWithTabs: function(data) {
-        const members = data.members || [];
-        const banned = data.banned || [];
-        const shadowbanned = data.shadowbanned || [];
-        
-        // Mettre à jour les compteurs
-        const countMembers = document.getElementById('count-members');
-        const countBanned = document.getElementById('count-banned');
-        const memberCount = document.getElementById('member-count');
-        
-        if (countMembers) countMembers.textContent = members.length;
-        if (countBanned) countBanned.textContent = banned.length;
-        if (memberCount) memberCount.textContent = members.length;
-        
-        // Rendre les membres dans l'onglet approprié
-        this.renderMembersWithStatus(members);
-        
-        // Rendre les bannis
-        this.renderBannedList(banned, shadowbanned);
+    // Gérer les mises à jour de membres (push)
+    handleMembersListUpdate: function(data) {
+        this.handleMembersList(data);
     },
     
     // Changer d'onglet dans le panneau des membres
@@ -3956,6 +4064,7 @@ const KRONOS = {
                         ${this.escapeHtml(user.display_name || user.username)}
                         ${user.role === 'supreme' ? '<span class="role-badge supreme">S</span>' : ''}
                         ${user.role === 'admin' || user.role === 'moderator' ? '<span class="role-badge admin">A</span>' : ''}
+                        ${user.role === 'IA' ? '<span class="role-badge ia">IA</span>' : ''}
                         ${isShadowbanned ? '<span class="ban-badge shadowbanned">Shadow</span>' : ''}
                     </div>
                     <div class="member-meta">@${this.escapeHtml(user.username)}</div>
@@ -4019,11 +4128,23 @@ const KRONOS = {
                 console.log('[KRONOS] Événement get_members émis via Socket.IO');
             } else {
                 console.warn('[KRONOS] Socket non disponible, utilisation du fallback');
-                this.renderMembersFallback();
+                const currentUser = {
+                    ...this.state.user,
+                    is_online: true,
+                    online: true,
+                    status: 'online'
+                };
+                this.renderMembersList([currentUser].filter(Boolean));
             }
         } catch (error) {
             console.warn('[KRONOS] Erreur lors du chargement des membres:', error);
-            this.renderMembersFallback();
+            const currentUser = {
+                ...this.state.user,
+                is_online: true,
+                online: true,
+                status: 'online'
+            };
+            this.renderMembersList([currentUser].filter(Boolean));
         }
     },
     
@@ -4072,144 +4193,16 @@ const KRONOS = {
         return date.toLocaleDateString('fr-FR');
     },
     
-    // Version fallback - affiche l'utilisateur courant
-    renderMembersFallback: function() {
-        const members = [];
-        
-        // Ajouter l'utilisateur courant en premier (toujours en ligne)
-        if (this.state.user) {
-            members.push({
-                ...this.state.user,
-                online: true,
-                status: 'online'
-            });
-        }
-        
-        // Les autres utilisateurs en ligne sont ajoutés via les événements socket
-        this.renderMembersWithStatus(members);
-    },
-    
-    // Afficher les membres avec sections par statut - Design qualitatif
-    renderMembersWithStatus: function(members) {
-        const container = this.elements.membersList;
-        if (!container) return;
-        
-        // Mettre à jour le compteur total
-        const memberCount = document.getElementById('member-count');
-        if (memberCount) {
-            memberCount.textContent = members.length;
-        }
-        
-        // Calculer les statistiques - Utiliser is_online boolean du backend
-        const stats = {
-            online: members.filter(m => m.is_online === true || m.online === true).length,
-            away: members.filter(m => m.status === 'away').length,
-            dnd: members.filter(m => m.status === 'dnd').length,
-            offline: members.filter(m => !m.is_online && !m.online).length
-        };
-        
-        // Afficher les stats
-        this.updateMembersStats(stats);
-
-        // Filtrer les membres par section - Utiliser is_online boolean
-        // Un utilisateur shadowbanni n'apparaît dans la liste "En ligne" que s'il s'agit de lui-même
-        const onlineMembers = members.filter(m => {
-            const isSelf = m.id === this.state.user?.id;
-            const isOnline = m.is_online === true || m.online === true;
-            const isShadowbanned = m.is_shadowbanned;
-            // Visible si en ligne ET (pas shadowbanni OU c'est soi-même)
-            return isOnline && (!isShadowbanned || isSelf);
-        });
-        const awayMembers = members.filter(m => m.status === 'away');
-        const dndMembers = members.filter(m => m.status === 'dnd');
-        const offlineMembers = members.filter(m => !m.is_online && !m.online);
-        
-        // Trier chaque groupe par rôle puis par nom
-        const roleOrder = { supreme: 0, admin: 1, moderator: 2, member: 3 };
-        const sortMembers = (a, b) => {
-            const roleDiff = (roleOrder[a.role] || 3) - (roleOrder[b.role] || 3);
-            if (roleDiff !== 0) return roleDiff;
-            return (a.display_name || a.username).localeCompare(b.display_name || b.username);
-        };
-        
-        onlineMembers.sort(sortMembers);
-        awayMembers.sort(sortMembers);
-        dndMembers.sort(sortMembers);
-        offlineMembers.sort(sortMembers);
-        
-        // Construire le HTML
-        let html = '';
-        
-        // Section En ligne
-        if (onlineMembers.length > 0) {
-            html += this.buildMembersSection('En ligne', 'online', onlineMembers, true);
-        }
-        
-        // Section Absent
-        if (awayMembers.length > 0) {
-            html += this.buildMembersSection('Absent', 'away', awayMembers, true);
-        }
-        
-        // Section Ne pas déranger
-        if (dndMembers.length > 0) {
-            html += this.buildMembersSection('Ne pas déranger', 'dnd', dndMembers, true);
-        }
-        
-        // Section Hors ligne
-        if (offlineMembers.length > 0) {
-            html += this.buildMembersSection('Hors ligne', 'offline', offlineMembers, false);
-        }
-        
-        // Message si aucun membre
-        if (members.length === 0) {
-            html = `
-                <div class="members-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                    </svg>
-                    <p>Aucun membre</p>
-                </div>
-            `;
-        }
-        
-        container.innerHTML = html;
-        
-        // Ajouter les écouteurs d'événements
-        this.attachMembersListeners();
-    },
-    
-    // Construire une section de membres
-    buildMembersSection: function(title, status, members, expanded) {
-        const sectionId = `members-section-${status}`;
-        
-        return `
-            <div class="members-section" data-status="${status}">
-                <div class="members-section-header" data-section="${sectionId}">
-                    <span class="members-section-title">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                        ${title}
-                    </span>
-                    <span class="members-section-count">${members.length}</span>
-                </div>
-                <div class="members-section-content ${expanded ? '' : 'collapsed'}" id="${sectionId}">
-                    ${members.map(member => this.buildMemberItem(member)).join('')}
-                </div>
-            </div>
-        `;
-    },
-    
-    // Construir un élément de membre
-    buildMemberItem: function(member) {
+    // FONCTION DE RENDU UNIQUE - Utilisée PARTOUT
+    renderMemberItem: function(member) {
         const isCurrentUser = member.id === this.state.user?.id;
         // Utiliser is_online boolean du backend (plus fiable que status string)
         const isOnline = member.is_online === true || member.online === true;
         const isAway = member.status === 'away';
         const isDnd = member.status === 'dnd';
+        
+        // Kroni est protégé - pas de boutons d'action admin
+        const isKroni = member.username === 'Kroni' || member.role === 'IA';
         
         // Déterminer la classe de statut
         let statusClass = 'offline';
@@ -4229,10 +4222,16 @@ const KRONOS = {
             supreme: 'SUPREME',
             admin: 'ADMIN',
             moderator: 'MOD',
+            IA: 'IA',
             member: ''
         };
         
-        const roleLabel = roleLabels[member.role] || '';
+        // Pour Kroni, pas de roleLabel (le badge IA suffit)
+        const isKroniMember = member.username === 'Kroni' || member.role === 'IA';
+        const roleLabel = isKroniMember ? '' : (roleLabels[member.role] || '');
+        
+        // Badge IA pour Kroni (seulement si pas admin/supreme)
+        const iaBadge = isKroniMember && member.role !== 'supreme' && member.role !== 'admin' ? '<span class="member-role-badge ia">IA</span>' : '';
         
         return `
             <div class="member-item ${isCurrentUser ? 'active' : ''}" data-user-id="${member.id}" data-username="${this.escapeHtml(member.username)}" data-is-online="${isOnline}">
@@ -4246,6 +4245,7 @@ const KRONOS = {
                 <div class="member-info">
                     <div class="member-name-row">
                         <span class="member-name">${this.escapeHtml(member.display_name || member.username)}</span>
+                        ${iaBadge}
                         ${roleLabel ? `<span class="member-role-badge ${member.role}">${roleLabel}</span>` : ''}
                     </div>
                     <div class="member-meta">
@@ -4254,7 +4254,7 @@ const KRONOS = {
                     </div>
                 </div>
                 <div class="member-item-actions">
-                    ${!isCurrentUser ? `
+                    ${!isCurrentUser && !isKroni ? `
                         <button class="member-action-btn" title="Voir le profil" data-action="profile" data-user-id="${member.id}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -4265,6 +4265,114 @@ const KRONOS = {
                 </div>
             </div>
         `;
+    },
+    
+    // FONCTIONS DE RENDU UNIFIÉES - Utilisées PARTOUT
+    
+    // Fonction principale de rendu de la liste des membres
+    renderMembersList: function(members) {
+        const container = this.elements.membersList;
+        if (!container) return;
+        
+        // Séparer les membres par statut
+        const onlineMembers = members.filter(m => m.is_online === true || m.online === true);
+        const awayMembers = members.filter(m => m.status === 'away');
+        const dndMembers = members.filter(m => m.status === 'dnd');
+        const offlineMembers = members.filter(m => 
+            (m.is_online !== true && m.online !== true) && 
+            m.status !== 'away' && 
+            m.status !== 'dnd'
+        );
+        
+        // Mettre à jour les compteurs
+        const countMembers = document.getElementById('count-members');
+        const memberCount = document.getElementById('member-count');
+        if (countMembers) countMembers.textContent = members.length;
+        if (memberCount) memberCount.textContent = members.length;
+        
+        // Générer le HTML avec la fonction de rendu unique
+        let html = '';
+        
+        if (onlineMembers.length > 0) {
+            html += this.renderMembersSection('En ligne', onlineMembers, 'online-section', true);
+        }
+        
+        if (awayMembers.length > 0 || dndMembers.length > 0) {
+            const busyMembers = [...awayMembers, ...dndMembers];
+            html += this.renderMembersSection('Occupés', busyMembers, 'busy-section', false);
+        }
+        
+        if (offlineMembers.length > 0) {
+            html += this.renderMembersSection('Hors ligne', offlineMembers, 'offline-section', false);
+        }
+        
+        container.innerHTML = html || '<div class="empty-state">Aucun membre</div>';
+        
+        // Attacher les écouteurs d'événements
+        this.attachMemberEventListeners();
+    },
+    
+    // Helper pour générer une section de membres
+    renderMembersSection: function(title, members, sectionId, expanded) {
+        return `
+            <div class="members-section">
+                <div class="members-section-header" data-section="${sectionId}">
+                    <span class="members-section-title">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        ${title}
+                    </span>
+                    <span class="members-section-count">${members.length}</span>
+                </div>
+                <div class="members-section-content ${expanded ? '' : 'collapsed'}" id="${sectionId}">
+                    ${members.map(member => this.renderMemberItem(member)).join('')}
+                </div>
+            </div>
+        `;
+    },
+    
+    // Attacher les écouteurs d'événements aux membres
+    attachMemberEventListeners: function() {
+        const container = this.elements.membersList;
+        if (!container) return;
+        
+        // Écouteurs pour les sections
+        container.querySelectorAll('.members-section-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const sectionId = header.dataset.section;
+                const content = document.getElementById(sectionId);
+                if (content) {
+                    content.classList.toggle('collapsed');
+                }
+            });
+        });
+        
+        // Écouteurs pour les éléments de membre
+        container.querySelectorAll('.member-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                // Ne pas déclencher si clic sur un bouton d'action
+                if (e.target.closest('.member-action-btn')) return;
+                
+                const userId = item.dataset.userId;
+                const username = item.dataset.username;
+                this.showUserProfile({ id: userId, username: username });
+            });
+        });
+        
+        // Écouteurs pour les boutons d'action
+        container.querySelectorAll('.member-action-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const userId = btn.dataset.userId;
+                
+                if (action === 'profile') {
+                    const username = btn.closest('.member-item').dataset.username;
+                    this.showUserProfile({ id: userId, username: username });
+                }
+            });
+        });
     },
     
     // Mettre à jour les statistiques des membres
@@ -4552,6 +4660,13 @@ const KRONOS = {
             this.showNotification('Vous êtes mute. Attendez la fin du compte à rebours.', 'error');
             return;
         }
+        
+        // Empêcher l'envoi si Kroni réfléchit actuellement
+        if (this.state.kroniThinkingChannel) {
+            this.showNotification('Kroni réfléchit encore, attendez sa réponse...', 'info');
+            return;
+        }
+        
         if (this.state.editingMessageId) {
             this.sendEditMessage();
             return;
@@ -4573,6 +4688,20 @@ const KRONOS = {
         
         if (!this.socket || !this.state.isConnected) {
             this.showNotification('Connexion en cours...', 'info');
+            return;
+        }
+        
+        // Si c'est le canal #kroni, envoyer vers l'IA au lieu du flux normal
+        if (this.isKroniChannel()) {
+            const replyToId = replyTo?.id || null;
+            await this.sendKroniMessage(content, replyToId);
+            return;
+        }
+        
+        // Détection mention @Kroni pour déclencher l'IA en dehors de #kroni
+        if (content.includes('@Kroni') || content.includes('@kroni')) {
+            const replyToId = replyTo?.id || null;
+            await this.sendKroniMessage(content, replyToId);
             return;
         }
         
@@ -4640,7 +4769,9 @@ const KRONOS = {
             );
 
             const sendPromise = new Promise((resolve, reject) => {
+                console.log('[DEBUG] Sending message payload:', payload);
                 this.socket.emit('send_message', payload, (response) => {
+                    console.log('[DEBUG] Socket response received:', response);
                     if (response && (response.status === 'ok' || response.success)) {
                         resolve(response.data || response.message);
                     } else {
@@ -4688,33 +4819,26 @@ const KRONOS = {
 
     // Confirmer le message (retirer pending, mettre à jour ID)
     confirmOptimisticMessage: function(clientId, realMessage) {
+        console.log('[DEBUG] confirmOptimisticMessage called:', {clientId, realMessage});
+        
         const channelId = realMessage.channel_id;
         
         // Retirer le flag "en cours"
         if (this.state.pendingMessages) {
             this.state.pendingMessages[channelId] = false;
         }
-
-        // Mettre à jour le state
-        if (this.state.messages[channelId]) {
-            const idx = this.state.messages[channelId].findIndex(m => m.client_id === clientId || m.id === clientId);
-            if (idx !== -1) {
-                this.state.messages[channelId][idx] = realMessage;
-            }
-        }
-
-        // Mettre à jour le DOM
-        const element = document.querySelector(`[data-message-id="${clientId}"]`);
+        
+        // Trouver l'élément DOM du message optimiste
+        const element = document.querySelector(`[data-client-id="${clientId}"]`);
         if (element) {
-            element.dataset.messageId = realMessage.id;
-            element.classList.remove('message-pending');
-            element.classList.remove('message-failed');
-            const statusIcon = element.querySelector('.status-icon');
-            if (statusIcon) statusIcon.remove();
-
             // CRITIQUE : Mettre à jour l'objet message attaché aux listeners
             // On ré-attache les listeners ou on met à jour la référence si possible
             this.attachMessageListeners(element, realMessage);
+        } else {
+            // Ignorer les clientId temporaires (messages optimistes déjà confirmés)
+            if (!clientId.startsWith('temp-')) {
+                console.warn('[DEBUG] DOM element not found for clientId:', clientId);
+            }
         }
         
         this.saveDraft(channelId, null);
@@ -5149,6 +5273,184 @@ const KRONOS = {
         const privateFileInput = document.getElementById('private-file-input');
         if (privateFileInput) privateFileInput.value = '';
     },
+
+    // ============================================
+    // FONCTIONS KRONI (IA)
+    // ============================================
+    
+    // Afficher l'animation de réflexion de Kroni
+    showKroniThinking: function(channelId) {
+        // Stocker le channel actuel pour restauration après changement de channel
+        this.state.kroniThinkingChannel = channelId;
+        
+        // Bloquer l'input pendant la réflexion
+        if (this.elements.messageInput) {
+            this.elements.messageInput.disabled = true;
+            this.elements.messageInput.placeholder = 'Kroni réfléchit...';
+        }
+        if (this.elements.privateMessageInput) {
+            this.elements.privateMessageInput.disabled = true;
+            this.elements.privateMessageInput.placeholder = 'Kroni réfléchit...';
+        }
+        if (this.elements.sendBtn) {
+            this.elements.sendBtn.disabled = true;
+        }
+        if (this.elements.privateSendBtn) {
+            this.elements.privateSendBtn.disabled = true;
+        }
+        if (this.elements.attachBtn) {
+            this.elements.attachBtn.disabled = true;
+        }
+        
+        // Déterminer le bon container (public ou privé)
+        let container;
+        if (this.state.dm && this.state.dm.current) {
+            // Mode DM
+            container = this.elements.privateMessagesContainer;
+        } else {
+            // Mode public
+            container = this.elements.messagesContainer;
+        }
+        
+        if (!container) return;
+        
+        // Vérifier si déjà présent
+        if (document.getElementById('kroni-thinking')) return;
+        
+        const thinkingEl = document.createElement('div');
+        thinkingEl.id = 'kroni-thinking';
+        thinkingEl.className = 'kroni-thinking';
+        thinkingEl.innerHTML = `
+            <div class="kroni-thinking-content">
+                <div class="kroni-thinking-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <span class="kroni-thinking-text">Kroni réfléchit...</span>
+            </div>
+        `;
+        container.appendChild(thinkingEl);
+        
+        // Scroller vers le bas
+        container.scrollTop = container.scrollHeight;
+    },
+
+    // Masquer l'animation de réflexion
+    hideKroniThinking: function() {
+        // Effacer l'état de réflexion
+        this.state.kroniThinkingChannel = null;
+        
+        // Débloquer l'input public
+        if (this.elements.messageInput) {
+            this.elements.messageInput.disabled = false;
+            this.elements.messageInput.placeholder = 'Tapez votre message...';
+        }
+        // Débloquer l'input privé
+        if (this.elements.privateMessageInput) {
+            this.elements.privateMessageInput.disabled = false;
+            this.elements.privateMessageInput.placeholder = 'Votre message...';
+        }
+        if (this.elements.sendBtn) {
+            this.elements.sendBtn.disabled = false;
+        }
+        if (this.elements.privateSendBtn) {
+            this.elements.privateSendBtn.disabled = false;
+        }
+        if (this.elements.attachBtn) {
+            this.elements.attachBtn.disabled = false;
+        }
+        
+        // Supprimer l'indicateur
+        const thinkingEl = document.getElementById('kroni-thinking');
+        if (thinkingEl) {
+            thinkingEl.remove();
+        }
+    },
+
+    // Vérifier si le canal actuel est #kroni
+    isKroniChannel: function() {
+        const channel = this.state.currentChannel;
+        return channel && channel.name === 'kroni';
+    },
+
+    // Envoyer un message à Kroni (canal public)
+    sendKroniMessage: async function(content, replyToId = null) {
+        if (!this.socket || !this.state.isConnected) {
+            this.showNotification('Connexion en cours...', 'info');
+            return;
+        }
+        
+        if (!content || !content.trim()) {
+            return;
+        }
+        
+        // Créer et afficher le message utilisateur IMMÉDIATEMENT (optimistic UI)
+        const clientId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const now = new Date().toISOString();
+        const optimisticMessage = {
+            id: clientId,
+            client_id: clientId,
+            channel_id: this.state.currentChannel.id,
+            content: content.trim(),
+            author: this.state.user,
+            created_at: now,
+            pending: true,
+            reply_to: replyToId
+        };
+        
+        // Afficher immédiatement le message utilisateur
+        this.appendOptimisticMessage(optimisticMessage);
+        
+        // Effacer l'input
+        if (this.elements.messageInput) {
+            this.elements.messageInput.value = '';
+        }
+        
+        // Afficher l'animation de réflexion APRÈS avoir affiché le message
+        this.showKroniThinking(this.state.currentChannel.id);
+        
+        // Envoyer via Socket.IO
+        this.socket.emit('kroni_message', {
+            channel_id: this.state.currentChannel.id,
+            content: content.trim(),
+            reply_to_id: replyToId,
+            client_id: clientId
+        }, (response) => {
+            console.log('[DEBUG] Kroni message response received:', response);
+            if (response && response.status === 'error') {
+                this.hideKroniThinking();
+                this.markMessageFailed(clientId, true);
+                this.showNotification(response.message || 'Erreur Kroni', 'error');
+            } else {
+                console.log('[DEBUG] Kroni message sent successfully');
+            }
+        });
+    },
+
+    // Envoyer un DM à Kroni
+    sendKroniDM: async function(content) {
+        if (!this.socket || !this.state.isConnected) {
+            this.showNotification('Connexion en cours...', 'info');
+            return;
+        }
+        
+        if (!content || !content.trim()) {
+            return;
+        }
+        
+        // NE PAS afficher l'animation localement - attendre l'événement serveur
+        // this.showKroniThinking('dm');
+        
+        // Envoyer via Socket.IO
+        this.socket.emit('kroni_dm', {
+            target_user_id: 'kroni',  // Sera résolu côté serveur
+            content: content.trim()
+        }, (response) => {
+            if (response && response.status === 'error') {
+                this.hideKroniThinking();
+                this.showNotification(response.message || 'Erreur Kroni', 'error');
+            }
+        });
+    },
     
     // Débuter une réponse
     startReply: function(message) {
@@ -5398,11 +5700,12 @@ const KRONOS = {
         const filesPanel = this.elements.filesPanel;
         const wasFilesPanelOpen = filesPanel && filesPanel.classList.contains('open');
         
-        ['members', 'files', 'profile'].forEach(name => {
+        ['members', 'files', 'profile', 'pins'].forEach(name => {
             const panels = {
                 'members': this.elements.membersPanel,
                 'files': this.elements.filesPanel,
-                'profile': this.elements.profilePanel
+                'profile': this.elements.profilePanel,
+                'pins': this.elements.pinsPanel
             };
             const panel = panels[name];
             if (panel) {
@@ -5883,6 +6186,13 @@ const KRONOS = {
             this.showNotification('Vous êtes mute. Attendez la fin du compte à rebours.', 'error');
             return;
         }
+        
+        // Empêcher l'envoi si Kroni réfléchit actuellement
+        if (this.state.kroniThinkingChannel) {
+            this.showNotification('Kroni réfléchit encore, attendez sa réponse...', 'info');
+            return;
+        }
+        
         const input = this.elements.privateMessageInput;
         if (!input) return;
         // En mode édition DM → valider l'édition au lieu d'envoyer un nouveau message
@@ -5898,6 +6208,14 @@ const KRONOS = {
         
         const conv = this.state.dm.current;
         if (!conv) return;
+        
+        // VÉRIFIER SI C'EST UNE CONVERSATION AVEC KRONI (IA)
+        const isKroni = conv.other_user && (conv.other_user.username === 'Kroni' || conv.other_user.role === 'IA');
+        if (isKroni) {
+            // Utiliser sendKroniDM pour l'IA
+            this.sendKroniDM(text);
+            return;
+        }
         
         const payload = { 
             content: text, 
@@ -6022,7 +6340,7 @@ const KRONOS = {
                 <div class="private-message-content">
                     ${replyHtml}
                     <div class="private-message-author">${this.escapeHtml(name)}</div>
-                    <div class="private-message-bubble">${this.escapeHtml(tempMessage.content || '')}</div>
+                    <div class="private-message-bubble">${this.formatMessageContent(tempMessage.content || '')}</div>
                     <div class="private-message-meta">
                         <span class="private-message-time">${time}</span>
                         <span class="status-icon">⏳</span>
@@ -6190,97 +6508,11 @@ const KRONOS = {
         `;
     },
     
-    // Prévisualiser un fichier
+    // Prévisualiser un fichier (ouvre systématiquement dans un nouvel onglet)
     previewFile: function(fileId, fileType) {
         const fileUrl = `/uploads/files/${fileId}`;
-        let previewContent = '';
-        let title = '';
-
-        if (fileType === 'image') {
-            previewContent = `<img src="${fileUrl}" alt="Aperçu" class="preview-image">`;
-            title = 'Aperçu de l\'image';
-        } else if (fileType === 'video') {
-            previewContent = `
-                <video controls class="preview-video" autoplay>
-                    <source src="${fileUrl}" type="video/mp4">
-                    Votre navigateur ne supporte pas la lecture vidéo.
-                </video>
-            `;
-            title = 'Lecture vidéo';
-        } else if (fileType === 'audio') {
-            previewContent = `
-                <div style="text-align: center; padding: 20px; width: 400px;">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent); margin-bottom: 20px;">
-                        <path d="M9 18V5l12-2v13"/>
-                        <circle cx="6" cy="18" r="3"/>
-                        <circle cx="18" cy="16" r="3"/>
-                    </svg>
-                    <audio controls class="preview-audio" style="width: 100%;">
-                        <source src="${fileUrl}" type="audio/mpeg">
-                        Votre navigateur ne supporte pas la lecture audio.
-                    </audio>
-                </div>
-            `;
-            title = 'Lecture audio';
-        } else if (fileType === 'document') {
-            // Pour les documents, ouvrir dans un nouvel onglet
-            window.open(fileUrl, '_blank');
-            return;
-        }
-
-        // Créer ou réutiliser la modale de prévisualisation
-        let previewModal = document.getElementById('file-preview-modal');
-        if (!previewModal) {
-            previewModal = document.createElement('div');
-            previewModal.id = 'file-preview-modal';
-            previewModal.className = 'modal-overlay';
-            document.body.appendChild(previewModal);
-        }
-
-        previewModal.innerHTML = `
-            <div class="preview-container" onclick="event.stopPropagation()">
-                <button class="preview-close" onclick="KRONOS.closeFilePreview()">×</button>
-                <div class="preview-content">
-                    ${previewContent}
-                </div>
-            </div>
-        `;
-
-        previewModal.classList.add('open');
-        previewModal.style.display = 'flex';
-
-        // Fermer avec Escape
-        const escapeHandler = (e) => {
-            if (e.key === 'Escape') {
-                this.closeFilePreview();
-            }
-        };
-        document.addEventListener('keydown', escapeHandler);
-        previewModal._escapeHandler = escapeHandler;
-
-        // Fermer en cliquant sur l'overlay
-        previewModal.onclick = () => this.closeFilePreview();
-    },
-
-    // Fermer l'aperçu de fichier
-    closeFilePreview: function() {
-        const previewModal = document.getElementById('file-preview-modal');
-        if (previewModal) {
-            previewModal.classList.remove('open');
-            previewModal.style.display = 'none';
-
-            // Arrêter les médias en cours
-            const video = previewModal.querySelector('video');
-            const audio = previewModal.querySelector('audio');
-            if (video) video.pause();
-            if (audio) audio.pause();
-
-            // Retirer le gestionnaire Escape
-            if (previewModal._escapeHandler) {
-                document.removeEventListener('keydown', previewModal._escapeHandler);
-                previewModal._escapeHandler = null;
-            }
-        }
+        // Ouvrir tous les fichiers dans un nouvel onglet - le navigateur gère l'affichage
+        window.open(fileUrl, '_blank');
     },
     
     // FICHIERS DE CONVERSATION PRIVÉE
@@ -6957,7 +7189,7 @@ const KRONOS = {
             if (response.ok) {
                 this.showNotification('Utilisateur promu Admin');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers();  // Recharger la liste
+                // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Erreur', 'error');
@@ -7012,7 +7244,7 @@ const KRONOS = {
             if (response.ok) {
                 this.showNotification('Admin rétrogradé');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers();  // Recharger la liste
+                // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Erreur', 'error');
@@ -7034,7 +7266,7 @@ const KRONOS = {
             if (response.ok) {
                 this.showNotification('Utilisateur banni');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers();  // Recharger la liste
+                // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Erreur', 'error');
@@ -7053,7 +7285,7 @@ const KRONOS = {
             if (response.ok) {
                 this.showNotification('Utilisateur débanni');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers();  // Recharger la liste
+                // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Erreur', 'error');
@@ -7072,7 +7304,7 @@ const KRONOS = {
                 const data = await response.json();
                 this.showNotification(data.message || 'Statut shadowban modifié');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers();  // Recharger la liste
+                // Mise à jour via push serveur - pas d'appel direct  // Recharger la liste
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Erreur', 'error');
@@ -7091,7 +7323,7 @@ const KRONOS = {
             if (response.ok) {
                 this.showNotification('Droits Admin Suprême retirés');
                 this.hideContextMenu();  // Fermer le menu après action
-                this.loadMembers(); // Recharger la liste des membres
+                // Mise à jour via push serveur - pas d'appel direct
             }
         } catch (error) {
             console.error('[KRONOS] Erreur:', error);
@@ -7099,12 +7331,32 @@ const KRONOS = {
     },
     
     // Afficher le profil d'un utilisateur - Version enrichie
-    showUserProfile: function(user) {
+    showUserProfile: async function(user) {
         console.log('[KRONOS] showUserProfile:', user?.username);
         
         if (!user || !user.id) {
             this.showNotification('Données utilisateur invalides', 'error');
             return;
+        }
+        
+        // Recharger les données réelles depuis l'API pour avoir le rôle à jour
+        if (user.id) {
+            try {
+                const response = await fetch(`/api/admin/users/${user.id}`, { credentials: 'same-origin' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.user) {
+                        user = { ...user, ...data.user };
+                        // Mettre à jour dans le cache local
+                        if (this.state.allUsersMap) {
+                            this.state.allUsersMap[user.id] = { ...this.state.allUsersMap[user.id], ...data.user };
+                        }
+                        console.log('[KRONOS] Profil rechargé depuis API:', user.role);
+                    }
+                }
+            } catch (e) {
+                console.error('[KRONOS] Erreur rechargement profil:', e);
+            }
         }
         
         let overlay = document.getElementById('profile-overlay');
@@ -7123,18 +7375,22 @@ const KRONOS = {
             'supreme': 'Admin Suprême',
             'admin': 'Administrateur',
             'moderator': 'Modérateur',
+            'IA': 'IA',
             'member': 'Membre'
         };
-        const roleLabel = roleTranslations[user.role] || 'Membre';
+        // Déterminer si c'est Kroni (IA) - AVANT roleLabel
+        const isKroniProfile = user.username === 'Kroni' || user.role === 'IA';
+        const roleLabel = isKroniProfile ? 'IA' : (roleTranslations[user.role] || 'Membre');
         
         // Icône de rôle
         const roleIcons = {
             'supreme': '👑',
             'admin': '⭐',
             'moderator': '🛡️',
+            'IA': '🤖',
             'member': '👤'
         };
-        const roleIcon = roleIcons[user.role] || '👤';
+        const roleIcon = isKroniProfile ? '🤖' : (roleIcons[user.role] || '👤');
         
         const avatarUrl = user.avatar || '/static/icons/default_avatar.svg';
         const bannerUrl = user.banner || (this.state.user && this.state.user.id === user.id && this.state.user.banner) || null;
@@ -7220,9 +7476,8 @@ const KRONOS = {
                             </button>
                         ` : ''}
                         
-                        
                         <!-- Boutons Admin (visible uniquement pour les admins) -->
-                        ${(this.state.user?.role === 'admin' || this.state.user?.role === 'supreme') && user.id !== this.state.user?.id ? `
+                        ${(this.state.user?.role === 'admin' || this.state.user?.role === 'supreme') && user.id !== this.state.user?.id && !isKroniProfile ? `
                             <div class="profile-admin-actions">
                                 ${user.role === 'supreme' ? `
                                     <button class="btn-action btn-action-unadmin" data-user-id="${user.id}" data-action="unadmin" title="Retirer droits Admin">
@@ -9090,8 +9345,36 @@ const KRONOS = {
         requestAnimationFrame(() => {
             if (this.elements.chatViewport) {
                 this.elements.chatViewport.scrollTop = this.elements.chatViewport.scrollHeight;
+                // Masquer le bouton après le scroll
+                if (this.elements.scrollToBottomBtn) {
+                    this.elements.scrollToBottomBtn.style.display = 'none';
+                }
             }
         });
+    },
+    
+    // Initialiser le bouton scroll-to-bottom
+    initScrollToBottomButton: function() {
+        const btn = this.elements.scrollToBottomBtn;
+        if (!btn) return;
+        
+        // Ajouter l'événement click
+        btn.addEventListener('click', () => {
+            this.scrollToBottom();
+        });
+        
+        // Ajouter le listener sur le chat viewport pour afficher/masquer le bouton
+        const viewport = this.elements.chatViewport;
+        if (viewport) {
+            viewport.addEventListener('scroll', () => {
+                const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 200;
+                if (isNearBottom) {
+                    btn.style.display = 'none';
+                } else {
+                    btn.style.display = 'flex';
+                }
+            });
+        }
     },
     
     // Afficher une notification (design identique aux toasts d'auth.js)
@@ -9405,27 +9688,411 @@ const KRONOS = {
 
     formatMessageContent: function(content) {
         if (!content) return '';
+        
         // Échapper le HTML pour éviter les XSS
         let formatted = this.escapeHtml(content);
         
-        // Autolink : Remplacer les URLs par des liens cliquables
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        formatted = formatted.replace(urlRegex, function(url) {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="message-link">${url}</a>`;
-        });
-
-        // Remplacer les mentions @username par un span stylisé
-        const self = this;
-        formatted = formatted.replace(/@([a-zA-Z0-9_-]+)/g, function(match, username) {
-            let className = "mention";
-            // Animation si c'est l'utilisateur courant qui est mentionné
-            if (self.state.user && self.state.user.username === username) {
-                className += " mention-flash";
-            }
-            return `<span class="${className}">@${username}</span>`;
-        });
+        // Optimisation: éviter les regex complexes si possible
+        if (formatted.length < 10) {
+            return formatted;
+        }
+        
+        // ÉTAPE 1: PROCESSUS DES EMBEDS EN PREMIER (AVANT transformation en liens)
+        if (this.containsEmbeddableUrl(formatted)) {
+            formatted = this.processEmbeds(formatted);
+        }
+        
+        // ÉTAPE 2: URLs simples (seulement celles non déjà transformées)
+        formatted = this.processRemainingUrls(formatted);
+        
+        // Mentions et formatage de base
+        formatted = formatted.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+        formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+        
+        // Sauts de ligne
+        formatted = formatted.replace(/\n/g, '<br>');
         
         return formatted;
+    },
+    
+    // Vérifier si le contenu contient des URLs embeddables
+    containsEmbeddableUrl: function(content) {
+        if (!content) return false;
+        
+        const embeddableDomains = [
+            'youtube.com', 'youtu.be', 'vimeo.com', 'spotify.com',
+            'tiktok.com', 'dailymotion.com', 'twitch.tv', 'soundcloud.com'
+        ];
+        
+        return embeddableDomains.some(domain => content.includes(domain));
+    },
+    
+    // Traiter les URLs restantes (non embeddables)
+    processRemainingUrls: function(content) {
+        if (!content) return content;
+        
+        // Éviter de transformer les URLs déjà dans des embeds
+        const embedPatterns = [
+            /<div class="embed-youtube">.*?<\/div>/g,
+            /<div class="embed-spotify">.*?<\/div>/g,
+            /<div class="embed-vimeo">.*?<\/div>/g,
+            /<div class="embed-tiktok">.*?<\/div>/g,
+            /<div class="embed-dailymotion">.*?<\/div>/g,
+            /<div class="embed-twitch">.*?<\/div>/g,
+            /<div class="embed-soundcloud">.*?<\/div>/g
+        ];
+        
+        let processedContent = content;
+        
+        // Marquer les embeds pour éviter la transformation
+        embedPatterns.forEach(pattern => {
+            processedContent = processedContent.replace(pattern, '%%EMBED_PLACEHOLDER%%');
+        });
+        
+        // Transformer les URLs restantes en liens
+        processedContent = processedContent.replace(/(https?:\/\/[^\s<]+)/g, 
+            '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+        
+        // Restaurer les embeds
+        embedPatterns.forEach((pattern, index) => {
+            const matches = content.match(pattern);
+            if (matches) {
+                matches.forEach(match => {
+                    processedContent = processedContent.replace('%%EMBED_PLACEHOLDER%%', match);
+                });
+            }
+        });
+        
+        return processedContent;
+    },
+    
+    // Fonction processEmbeds - Traitement des embeds
+    processEmbeds: function(content) {
+        if (!content) return content;
+        
+        try {
+            // YouTube - regex corrigée pour gérer les paramètres
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:&[^&]*)*/g, 
+                '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+            
+            content = content.replace(/(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]+)/g, 
+                '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+            
+            // Spotify - regex corrigée pour gérer les paramètres et embed URLs
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?open\.spotify\.com\/(?:embed\/)?track\/([a-zA-Z0-9]+)(?:\?[^&]*)*/g, 
+                '<div class="embed-spotify"><iframe src="https://open.spotify.com/embed/track/$1" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe></div>');
+            
+            // Vimeo - regex améliorée
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)(?:\?[^&]*)*/g, 
+                '<div class="embed-vimeo"><iframe src="https://player.vimeo.com/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+            
+            // TikTok
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@[^\/]+\/video\/(\d+)/g, 
+                '<div class="embed-tiktok"><iframe src="https://www.tiktok.com/embed/v2/video/$1" width="325" height="560" frameborder="0" allowfullscreen></iframe></div>');
+            
+            // Dailymotion
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?dailymotion\.com\/video\/([a-zA-Z0-9]+)/g, 
+                '<div class="embed-dailymotion"><iframe src="https://www.dailymotion.com/embed/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+            
+            // Twitch
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/g, 
+                '<div class="embed-twitch"><iframe src="https://player.twitch.tv/?video=$1&parent=localhost&autoplay=false" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+            
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)/g, 
+                '<div class="embed-twitch"><iframe src="https://player.twitch.tv/?channel=$1&parent=localhost&autoplay=false" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+            
+            // SoundCloud
+            content = content.replace(/(?:https?:\/\/)?(?:www\.)?soundcloud\.com\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/g, 
+                '<div class="embed-soundcloud"><iframe src="https://w.soundcloud.com/player/?url=https://soundcloud.com/$1&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=true" width="100%" height="166" frameborder="0" allowfullscreen></iframe></div>');
+            
+            return content;
+        } catch (e) {
+            console.error('[KRONOS] Erreur processEmbeds:', e);
+            return content;
+        }
+    },
+    
+    // Système d'Embed Universel - 50+ Plateformes
+    generateSocialEmbed: function(url) {
+        try {
+            const platform = this.detectPlatform(url);
+            if (!platform) return null;
+            
+            const embedData = this.generateEmbedData(url, platform);
+            if (!embedData) return null;
+            
+            return `
+                <div class="social-embed ${platform.class}-embed">
+                    ${embedData.iframe || embedData.html}
+                    ${embedData.info ? `
+                        <div class="embed-info">
+                            <div class="embed-platform">${platform.name}</div>
+                            <a href="${url}" target="_blank" class="embed-title">${embedData.title || `Contenu ${platform.name}`}</a>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        } catch (e) {
+            console.warn('[KRONOS] Erreur génération embed:', e);
+            return null;
+        }
+    },
+    
+    // Détecteur Universel de Plateformes
+    detectPlatform: function(url) {
+        const platforms = {
+            // VIDÉO
+            'youtube': {
+                name: 'YouTube',
+                class: 'youtube',
+                patterns: [
+                    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
+                    /youtu\.be\/([a-zA-Z0-9_-]+)/,
+                    /youtube\.com\/embed\/([a-zA-Z0-9_-]+)/
+                ]
+            },
+            'vimeo': {
+                name: 'Vimeo',
+                class: 'vimeo',
+                patterns: [
+                    /vimeo\.com\/(\d+)/,
+                    /player\.vimeo\.com\/video\/(\d+)/
+                ]
+            },
+            'spotify': {
+                name: 'Spotify',
+                class: 'spotify',
+                patterns: [
+                    /open\.spotify\.com\/track\/([a-zA-Z0-9]+)/,
+                    /open\.spotify\.com\/album\/([a-zA-Z0-9]+)/,
+                    /open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)/
+                ]
+            },
+            'twitter': {
+                name: 'X/Twitter',
+                class: 'twitter',
+                patterns: [
+                    /twitter\.com\/[^\/]+\/status\/(\d+)/,
+                    /x\.com\/[^\/]+\/status\/(\d+)/
+                ]
+            },
+            'instagram': {
+                name: 'Instagram',
+                class: 'instagram',
+                patterns: [
+                    /instagram\.com\/p\/([a-zA-Z0-9_-]+)/,
+                    /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/
+                ]
+            },
+            'tiktok': {
+                name: 'TikTok',
+                class: 'tiktok',
+                patterns: [
+                    /tiktok\.com\/@[^\/]+\/video\/(\d+)/,
+                    /vm\.tiktok\.com\/([a-zA-Z0-9]+)/
+                ]
+            },
+            'dailymotion': {
+                name: 'Dailymotion',
+                class: 'dailymotion',
+                patterns: [
+                    /dailymotion\.com\/video\/([a-zA-Z0-9]+)/
+                ]
+            },
+            'twitch': {
+                name: 'Twitch',
+                class: 'twitch',
+                patterns: [
+                    /twitch\.tv\/videos\/(\d+)/,
+                    /twitch\.tv\/([^\/\?]+)/
+                ]
+            },
+            'soundcloud': {
+                name: 'SoundCloud',
+                class: 'soundcloud',
+                patterns: [
+                    /soundcloud\.com\/[^\/]+\/([^\/\?]+)/
+                ]
+            }
+        };
+        
+        for (const [key, platform] of Object.entries(platforms)) {
+            for (const pattern of platform.patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    return { ...platform, match, key };
+                }
+            }
+        }
+        
+        return null;
+    },
+    
+    // Générateur de données d'embed pour chaque plateforme
+    generateEmbedData: function(url, platform) {
+        try {
+            switch (platform.key) {
+                case 'youtube':
+                    const videoId = platform.match[1];
+                    return {
+                        iframe: `<iframe 
+                            width="100%" 
+                            height="180" 
+                            src="//www.youtube.com/embed/${videoId}" 
+                            frameborder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen="" 
+                            loading="lazy">
+                        </iframe>`,
+                        title: 'Vidéo YouTube',
+                        info: true
+                    };
+                    
+                case 'vimeo':
+                    const videoIdVimeo = platform.match[1];
+                    return {
+                        iframe: `<iframe 
+                            src="https://player.vimeo.com/video/${videoIdVimeo}" 
+                            width="100%" 
+                            height="180" 
+                            frameborder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="autoplay; fullscreen; picture-in-picture" 
+                            allowfullscreen
+                            loading="lazy">
+                        </iframe>`,
+                        title: 'Vidéo Vimeo',
+                        info: true
+                    };
+                    
+                case 'spotify':
+                    const spotifyId = platform.match[1];
+                    const spotifyType = url.includes('/track/') ? 'track' : url.includes('/album/') ? 'album' : 'playlist';
+                    return {
+                        iframe: `<iframe 
+                            style="border-radius:12px" 
+                            src="https://open.spotify.com/embed/${spotifyType}/${spotifyId}?utm_source=generator&theme=0" 
+                            width="100%" 
+                            height="152" 
+                            frameBorder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen="" 
+                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                            loading="lazy">
+                        </iframe>`,
+                        title: `${spotifyType === 'track' ? 'Piste' : spotifyType === 'album' ? 'Album' : 'Playlist'} Spotify`,
+                        info: true
+                    };
+                    
+                case 'twitter':
+                    const tweetId = platform.match[1];
+                    return {
+                        html: `<blockquote class="twitter-tweet" data-width="400">
+                            <a href="${url}">Tweet</a>
+                        </blockquote>
+                        <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>`,
+                        title: 'Tweet',
+                        info: false
+                    };
+                    
+                case 'instagram':
+                    const postId = platform.match[1];
+                    return {
+                        html: `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style=" width:100%; height:400px;"></blockquote>
+                        <script async src="//www.instagram.com/embed.js"></script>`,
+                        title: 'Post Instagram',
+                        info: false
+                    };
+                    
+                case 'tiktok':
+                    const tiktokId = platform.match[1];
+                    return {
+                        iframe: `<iframe 
+                            width="100%" 
+                            height="400" 
+                            src="https://www.tiktok.com/embed/v2/${tiktokId}" 
+                            frameborder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="autoplay; encrypted-media; picture-in-picture" 
+                            allowfullscreen
+                            loading="lazy">
+                        </iframe>`,
+                        title: 'Vidéo TikTok',
+                        info: true
+                    };
+                    
+                case 'dailymotion':
+                    const dailymotionId = platform.match[1];
+                    return {
+                        iframe: `<iframe 
+                            width="100%" 
+                            height="180" 
+                            src="https://www.dailymotion.com/embed/video/${dailymotionId}" 
+                            frameborder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="autoplay; encrypted-media; picture-in-picture" 
+                            allowfullscreen
+                            loading="lazy">
+                        </iframe>`,
+                        title: 'Vidéo Dailymotion',
+                        info: true
+                    };
+                    
+                case 'twitch':
+                    const twitchId = platform.match[1];
+                    const isVideo = url.includes('/videos/');
+                    return {
+                        iframe: `<iframe 
+                            width="100%" 
+                            height="400" 
+                            src="${isVideo ? `https://player.twitch.tv/?video=${twitchId}&parent=${encodeURIComponent(window.location.hostname || 'localhost')}` : `https://player.twitch.tv/?channel=${twitchId}&parent=${encodeURIComponent(window.location.hostname || 'localhost')}`}" 
+                            frameborder="0" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="autoplay; encrypted-media; picture-in-picture" 
+                            allowfullscreen
+                            loading="lazy">
+                        </iframe>`,
+                        title: isVideo ? 'Vidéo Twitch' : 'Chaîne Twitch',
+                        info: true
+                    };
+                    
+                case 'soundcloud':
+                    const soundcloudPath = platform.match[1];
+                    return {
+                        iframe: `<iframe 
+                            width="100%" 
+                            height="166" 
+                            scrolling="no" 
+                            frameborder="no" 
+                            src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&visual=true" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="autoplay; encrypted-media" 
+                            loading="lazy">
+                        </iframe>`,
+                        title: 'Audio SoundCloud',
+                        info: true
+                    };
+                    
+                default:
+                    return {
+                        html: `<div class="embed-fallback">
+                            <div class="embed-icon">🔗</div>
+                            <div class="embed-info">
+                                <div class="embed-platform">${platform.name}</div>
+                                <a href="${url}" target="_blank" class="embed-title">Voir sur ${platform.name}</a>
+                            </div>
+                        </div>`,
+                        title: `Contenu ${platform.name}`,
+                        info: false
+                    };
+            }
+        } catch (e) {
+            console.warn('[KRONOS] Erreur génération embed data:', e);
+            return null;
+        }
     },
     
     // WebRTC handlers (stubs)
@@ -9436,18 +10103,18 @@ const KRONOS = {
     handleUserLeftVoice: function(data) { /* À implémenter */ }
 };
 
-// DEBUG GLOBAL - Capturer tous les clics pour debugging
-document.addEventListener('click', function(e) {
-    console.log('[DEBUG-CLICK]', e.target.tagName, e.target.id, e.target.className);
-    
-    // Si clic sur un de nos boutons, logger explicitement
-    if (e.target.id === 'settings-btn' || e.target.closest('#settings-btn')) {
-        console.log('[DEBUG] Clic détecté sur #settings-btn');
-    }
-    if (e.target.id === 'user-indicator' || e.target.closest('#user-indicator')) {
-        console.log('[DEBUG] Clic détecté sur #user-indicator');
-    }
-}, true); // true = capture phase
+// DEBUG GLOBAL - Capturer tous les clics pour debugging (désactivé)
+// document.addEventListener('click', function(e) {
+//     console.log('[DEBUG-CLICK]', e.target.tagName, e.target.id, e.target.className);
+//     
+//     // Si clic sur un de nos boutons, logger explicitement
+//     if (e.target.id === 'settings-btn' || e.target.closest('#settings-btn')) {
+//         console.log('[DEBUG] Clic détecté sur #settings-btn');
+//     }
+//     if (e.target.id === 'user-indicator' || e.target.closest('#user-indicator')) {
+//         console.log('[DEBUG] Clic détecté sur #user-indicator');
+//     }
+// }, true); // true = capture phase
 
 // Fonction de test globale
 window.debugKronos = function() {
@@ -9465,6 +10132,94 @@ window.debugKronos = function() {
         KRONOS.showSettings('profile');
     }
     return 'Debug complet terminé';
+};
+
+// Fonction de test pour les embeds universels
+window.testUniversalEmbeds = function() {
+    const testUrls = [
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://vimeo.com/123456789',
+        'https://open.spotify.com/track/4cOdK2wGLETOMsVv4gKs45c',
+        'https://twitter.com/user/status/123456789',
+        'https://www.instagram.com/p/ABC123/',
+        'https://www.tiktok.com/@username/video/1234567890123456789',
+        'https://www.dailymotion.com/video/x123456',
+        'https://www.twitch.tv/videos/123456789',
+        'https://soundcloud.com/artist/track-name'
+    ];
+    
+    console.log('=== TEST EMBEDS UNIVERSELS ===');
+    testUrls.forEach(url => {
+        const platform = KRONOS.detectPlatform(url);
+        console.log(`URL: ${url}`);
+        console.log(`Platform:`, platform ? platform.name : 'Non détecté');
+        if (platform) {
+            const embedData = KRONOS.generateEmbedData(url, platform);
+            console.log(`Embed Data:`, embedData ? '✅ Généré' : '❌ Erreur');
+        }
+        console.log('---');
+    });
+    return 'Test des embeds terminé';
+};
+
+// Test rapide YouTube
+window.quickTest = function() {
+    const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+    console.log('=== DEBUG RAPIDE YOUTUBE ===');
+    console.log('URL testée:', testUrl);
+    
+    // Test 1: Détection de plateforme
+    const platform = KRONOS.detectPlatform(testUrl);
+    console.log('1. Plateforme détectée:', platform ? platform.name : '❌ Non détectée');
+    
+    if (!platform) {
+        console.error('❌ Plateforme non détectée - problème dans detectPlatform');
+        return;
+    }
+    
+    // Test 2: Génération des données d'embed
+    const embedData = KRONOS.generateEmbedData(testUrl, platform);
+    console.log('2. Embed data:', embedData);
+    
+    if (!embedData) {
+        console.error('❌ Embed data non généré - problème dans generateEmbedData');
+        return;
+    }
+    
+    // Vérifier le paramètre origin
+    if (embedData.iframe && embedData.iframe.includes('origin=')) {
+        console.log('✅ Paramètre origin présent');
+    } else {
+        console.error('❌ Paramètre origin manquant');
+    }
+    
+    // Vérifier referrerpolicy
+    if (embedData.iframe && embedData.iframe.includes('referrerpolicy')) {
+        console.log('✅ Referrerpolicy présent');
+    } else {
+        console.error('❌ Referrerpolicy manquant');
+    }
+    
+    // Test 3: Génération de l'embed complet
+    const embed = KRONOS.generateSocialEmbed(testUrl);
+    console.log('3. Embed complet généré:', embed ? '✅' : '❌');
+    if (embed) {
+        console.log('HTML de l\'embed:', embed.substring(0, 200) + '...');
+    }
+    
+    return 'Test YouTube terminé';
+};
+
+// Test avec message complet
+window.testMessage = function(message) {
+    const testMessage = message || 'Regarde cette vidéo : https://www.youtube.com/watch?v=dQw4w9WgXcQ c\'est super !';
+    console.log('=== TEST MESSAGE COMPLET ===');
+    console.log('Message original:', testMessage);
+    
+    const formatted = KRONOS.formatMessageContent(testMessage);
+    console.log('Message formaté:', formatted);
+    
+    return formatted;
 };
 
 window.handleLogout = async function() {
@@ -9489,6 +10244,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     console.log('[KRONOS] Fonction test disponible: testez avec testShowSettings() dans la console');
+    console.log('[KRONOS] Fonction test embeds disponible: testez avec testUniversalEmbeds() dans la console');
+    console.log('[KRONOS] Test rapide disponible: testez avec quickTest() dans la console');
+    console.log('[KRONOS] Test message complet: testez avec testMessage() dans la console');
     
     KRONOS.init();
 });

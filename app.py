@@ -10,6 +10,7 @@ import functools
 from datetime import datetime, timedelta, timezone
 import time
 from pathlib import Path
+from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, session, flash
 from flask_cors import CORS
@@ -169,6 +170,38 @@ def send_async_email(app, msg):
 # ============================================
 # FONCTIONS UTILITAIRES SOCKET.IO
 # ============================================
+def simulate_kroni_presence():
+    """Simule une connexion permanente pour Kroni"""
+    try:
+        from datetime import datetime, timezone
+        from models import User, OnlinePresence
+        
+        kroni = User.query.filter_by(username='Kroni').first()
+        if not kroni:
+            return
+        
+        # Vérifier si Kroni a déjà une présence
+        existing_presence = OnlinePresence.query.filter_by(user_id=kroni.id).first()
+        
+        if not existing_presence:
+            # Créer une présence virtuelle pour Kroni
+            kroni_presence = OnlinePresence(
+                user_id=kroni.id,
+                socket_id="kroni-virtual-socket",  # Socket ID virtuel
+                last_ping=datetime.now(timezone.utc)
+            )
+            db.session.add(kroni_presence)
+            db.session.commit()
+            print("[KRONI] Présence virtuelle créée")
+        else:
+            # Mettre à jour le ping pour maintenir l'activité
+            existing_presence.last_ping = datetime.now(timezone.utc)
+            db.session.commit()
+            print("[KRONI] Présence virtuelle mise à jour")
+    except Exception as e:
+        print(f"[KRONI] Erreur critique simulation présence: {e}")
+        # Ne pas bloquer la connexion utilisateur en cas d'erreur
+
 def safe_disconnect(socket_id):
     """Déconnecte proprement un utilisateur via Socket.IO"""
     try:
@@ -476,6 +509,34 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 2592000 # 30 jours
 online_users = set()
 app.config.from_object('config')
 app.config.setdefault('UPLOAD_FOLDER', str(UPLOADS_DIR))
+
+# Vérification IP Admin Suprême à chaque requête
+@app.before_request
+def check_supreme_admin_ip():
+    """Vérifie et rétrograde l'admin suprême si l'IP ne correspond plus"""
+    if not current_user.is_authenticated:
+        return None
+    
+    # Seulement pour les utilisateurs suprême
+    if current_user.role != UserRole.SUPREME:
+        return None
+    
+    # Obtenir l'IP du client
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
+    # Si l'IP ne correspond plus, rétrograder
+    if client_ip and not is_supreme_admin(ip=client_ip):
+        if current_user.previous_role and current_user.previous_role != UserRole.SUPREME:
+            current_user.role = current_user.previous_role
+        elif not current_user.previous_role:
+            current_user.role = UserRole.MEMBER
+        current_user.previous_role = None
+        db.session.commit()
+        print(f"[Auth] {current_user.username} rétrogradé à {current_user.role} (IP non autorisée): {client_ip}")
+    
+    return None
 
 # Debug Toolbar (activée seulement en DEBUG)
 try:
@@ -795,6 +856,7 @@ def verify_db_structure():
                     ('animations_enabled', 'BOOLEAN', '1'),
                     ('personal_panic_url', 'VARCHAR(500)', None),
                     ('personal_panic_hotkey', 'VARCHAR(50)', None),
+                    ('previous_role', 'VARCHAR(50)', "'member'"),
                 ]
             )
             ensure_sqlite_columns(
@@ -1272,9 +1334,28 @@ def login():
     
     # Vérifier si c'est l'admin supreme par IP
     if is_supreme_admin(ip=client_ip):
+        # Sauvegarder le rôle précédent avant promotion
+        if user.role != UserRole.SUPREME:
+            user.previous_role = user.role
         user.role = UserRole.SUPREME
         db.session.commit()
         print(f"[Auth] {user.username} promu Admin Suprême via IP: {client_ip}")
+    else:
+        # Rétrogradation automatique si l'IP ne correspond plus
+        # Rétrograder si: utilisateur est SUPREME ET (previous_role n'est pas SUPREME ou previous_role est null)
+        if user.role == UserRole.SUPREME:
+            if user.previous_role and user.previous_role != UserRole.SUPREME:
+                user.role = user.previous_role
+            elif not user.previous_role:
+                # previous_role vide ou null = rétrograder vers member
+                user.role = UserRole.MEMBER
+            else:
+                # previous_role était aussi SUPREME, garder le rôle actuel
+                pass
+            user.previous_role = None
+            db.session.commit()
+            if user.role != UserRole.SUPREME:
+                print(f"[Auth] {user.username} rétrogradé à {user.role} (IP non autorisée)")
     
     # Enregistrer l'IP de connexion
     user.last_ip = client_ip
@@ -1591,10 +1672,11 @@ def get_messages(channel_id):
         if before_msg:
             query = query.filter(Message.created_at < before_msg.created_at)
     
-    messages = query.order_by(Message.created_at.desc()).limit(limit).all()
+    # Tri CRITIQUEMENT croissant (ASC) pour respect chronologique
+    messages = query.order_by(Message.created_at.asc()).limit(limit).all()
     
     return jsonify({
-        'messages': [msg.to_dict() for msg in reversed(messages)],
+        'messages': [msg.to_dict() for msg in messages],
         'has_more': len(messages) == limit
     })
 
@@ -1629,7 +1711,7 @@ def edit_message(message_id):
 @app.route('/api/messages/<message_id>', methods=['DELETE'])
 @login_required
 def delete_message(message_id):
-    """Supprime un message (soft delete)"""
+    """Supprime un message et ses fichiers associés"""
     print(f"[DEBUG] Tentative de suppression du message: {message_id} par l'utilisateur: {current_user.id}")
     message = Message.query.get(message_id)
     
@@ -1643,6 +1725,37 @@ def delete_message(message_id):
         return jsonify({'error': 'Permission refusée'}), 403
     
     channel_id = message.channel_id
+    
+    # Supprimer les fichiers associés physiquement
+    try:
+        attachments = FileAttachment.query.filter_by(message_id=message_id).all()
+        for attachment in attachments:
+            # Supprimer le fichier physique
+            if attachment.file_path and os.path.exists(attachment.file_path):
+                try:
+                    os.remove(attachment.file_path)
+                    print(f"[DEBUG] Fichier physique supprimé: {attachment.file_path}")
+                except Exception as e:
+                    print(f"[ERROR] Impossible de supprimer le fichier {attachment.file_path}: {e}")
+            
+            # Supprimer la miniature si elle existe
+            if attachment.thumbnail_path and os.path.exists(attachment.thumbnail_path):
+                try:
+                    os.remove(attachment.thumbnail_path)
+                    print(f"[DEBUG] Miniature supprimée: {attachment.thumbnail_path}")
+                except Exception as e:
+                    print(f"[ERROR] Impossible de supprimer la miniature {attachment.thumbnail_path}: {e}")
+            
+            # Supprimer l'enregistrement de la base de données
+            db.session.delete(attachment)
+            print(f"[DEBUG] Enregistrement de fichier supprimé: {attachment.id}")
+        
+        db.session.commit()
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la suppression des fichiers: {e}")
+        db.session.rollback()
+    
+    # Soft delete du message
     message.is_deleted = True
     message.content = ""
     
@@ -1653,7 +1766,7 @@ def delete_message(message_id):
     socketio.emit('message_deleted', {'message_id': message_id}, room=str(channel_id))
     
     log_action(current_user, ActionType.DELETE_MESSAGE, target_id=message_id,
-               target_type='message', details='Suppression de message')
+               target_type='message', details='Suppression de message et fichiers associés')
     
     return jsonify({'message': 'Message supprimé'})
 
@@ -1855,7 +1968,7 @@ def dm_leave():
     other_part = ChannelParticipant.query.filter(ChannelParticipant.channel_id == channel_id, ChannelParticipant.user_id != current_user.id).first()
     if other_part:
         other_user = db.session.get(User, other_part.user_id)
-        emit('dm_conversation_updated', {
+        socketio.emit('dm_conversation_updated', {
             'channel': channel.to_dict(),
             'other_user': other_user.to_dict(include_sensitive=False) if other_user else None,
             'last_message': system_msg.to_dict()
@@ -2138,6 +2251,17 @@ def serve_banner(filename):
         return jsonify({'error': 'Bannière non trouvée'}), 404
     return send_from_directory(str(BANNERS_DIR), filename)
 
+@app.route('/uploads/generated/<filename>')
+def serve_generated_image(filename):
+    """Sert les images générées par l'IA"""
+    from pathlib import Path
+    generated_dir = Path(UPLOADS_DIR) / 'generated'
+    file_path = generated_dir / filename
+    
+    if not file_path.exists():
+        return jsonify({'error': 'Image non trouvée'}), 404
+    return send_from_directory(str(generated_dir), filename)
+
 @app.route('/uploads/files/<path:filename>')
 def serve_file(filename):
     """Sert les fichiers uploadés avec le nom original préservé"""
@@ -2239,9 +2363,192 @@ def get_file_info(file_id):
     
     return jsonify({'file': file_record.to_dict()})
 
+@app.route('/api/files/cleanup-orphans', methods=['POST'])
+@login_required
+def cleanup_orphan_files():
+    """Nettoie les fichiers orphelins (Admin uniquement)"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Permission refusée'}), 403
+    
+    try:
+        # Récupérer tous les fichiers dont le message_id n'est plus valide
+        orphan_files = db.session.query(FileAttachment).outerjoin(Message, FileAttachment.message_id == Message.id).filter(
+            FileAttachment.message_id.isnot(None),
+            Message.id.is_(None)
+        ).all()
+        
+        deleted_count = 0
+        deleted_size = 0
+        
+        for file_record in orphan_files:
+            # Supprimer le fichier physique
+            if file_record.file_path and os.path.exists(file_record.file_path):
+                try:
+                    file_size = os.path.getsize(file_record.file_path)
+                    os.remove(file_record.file_path)
+                    deleted_size += file_size
+                    print(f"[CLEANUP] Fichier orphelin supprimé: {file_record.file_path}")
+                except Exception as e:
+                    print(f"[ERROR] Impossible de supprimer le fichier orphelin {file_record.file_path}: {e}")
+            
+            # Supprimer la miniature si elle existe
+            if file_record.thumbnail_path and os.path.exists(file_record.thumbnail_path):
+                try:
+                    os.remove(file_record.thumbnail_path)
+                    print(f"[CLEANUP] Miniature orpheline supprimée: {file_record.thumbnail_path}")
+                except Exception as e:
+                    print(f"[ERROR] Impossible de supprimer la miniature orpheline {file_record.thumbnail_path}: {e}")
+            
+            # Supprimer l'enregistrement de la base de données
+            db.session.delete(file_record)
+            deleted_count += 1
+        
+        db.session.commit()
+        
+        # Nettoyer aussi les fichiers qui n'existent plus physiquement mais sont en base
+        ghost_files = FileAttachment.query.filter(
+            FileAttachment.file_path.isnot(None),
+            ~db.session.query(FileAttachment).filter(
+                db.exists().where(FileAttachment.file_path == os.path.exists(FileAttachment.file_path))
+            ).correlate(FileAttachment).exists()
+        ).all()
+        
+        for ghost_file in ghost_files:
+            db.session.delete(ghost_file)
+            deleted_count += 1
+            print(f"[CLEANUP] Fichier fantôme supprimé de la BDD: {ghost_file.filename}")
+        
+        db.session.commit()
+        
+        log_action(current_user, ActionType.DELETE_MESSAGE, 
+                   details=f'Nettoyage fichiers orphelins: {deleted_count} fichiers, {deleted_size} octets')
+        
+        return jsonify({
+            'success': True, 
+            'deleted_count': deleted_count,
+            'deleted_size': deleted_size,
+            'message': f'{deleted_count} fichiers orphelins supprimés'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERROR] Erreur lors du nettoyage des fichiers orphelins: {e}")
+        return jsonify({'error': str(e)}), 500
+
 # ============================================
-# MODÉRATION
+# PUSH SERVEUR - UNIFICATION MEMBRES
 # ============================================
+
+def push_members_list_update():
+    """Pousser la liste des membres mise à jour à tous les clients"""
+    try:
+        all_users = User.query.all()
+        online_presences = OnlinePresence.query.filter(
+            OnlinePresence.last_ping > datetime.now(timezone.utc) - timedelta(minutes=5)
+        ).all()
+        online_user_ids = {p.user_id for p in online_presences}
+        members = []
+        banned_list = []
+        shadowbanned_list = []
+        
+        for user in all_users:
+            is_kroni = user.username == 'Kroni'
+            if user.is_active:
+                user_data = user.to_dict()
+                # FORCER KRONI TOUJOURS ACTIF ET EN LIGNE
+                if is_kroni:
+                    user_data['is_online'] = True
+                    user_data['last_seen'] = datetime.now(timezone.utc).isoformat()
+                    # MARQUER COMME CONNECTÉ VIA SOCKET VIRTUEL
+                    user_data['socket_id'] = "kroni-virtual-socket"
+                else:
+                    user_data['is_online'] = user.id in online_user_ids
+                    user_data['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
+                if user.is_shadowbanned:
+                    members.append(user_data)
+                    shadowbanned_entry = user.to_dict()
+                    shadowbanned_entry['is_online'] = is_kroni or (user.id in online_user_ids)
+                    shadowbanned_entry['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
+                    shadowbanned_list.append(shadowbanned_entry)
+                else:
+                    members.append(user_data)
+            else:
+                user_data = user.to_dict()
+                user_data['is_online'] = is_kroni or (user.id in online_user_ids)
+                user_data['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
+                banned_list.append(user_data)
+        
+        # Émettre la liste mise à jour à tous
+        socketio.emit('members_list_update', {
+            'members': members,
+            'banned': banned_list,
+            'shadowbanned': shadowbanned_list,
+            'total_online': len(online_user_ids),
+            'online_user_ids': list(online_user_ids)
+        })
+        
+        print(f"[SocketIO] Liste membres poussée à tous - {len(members)} membres, {len(online_user_ids)} en ligne")
+        
+    except Exception as e:
+        print(f"[ERROR] Erreur push membres: {e}")
+
+# ============================================
+# API ADMINISTRATION
+# ============================================
+
+@app.route('/api/admin/check', methods=['GET'])
+@login_required
+def admin_check():
+    """Vérifier si l'utilisateur est administrateur pour l'Admin Shell"""
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Non authentifié'}), 401
+    
+    is_supreme = current_user.role == UserRole.SUPREME
+    is_admin = current_user.role in [UserRole.ADMIN, UserRole.SUPREME]
+    
+    return jsonify({
+        'user': {
+            'id': current_user.id,
+            'username': current_user.username,
+            'role': current_user.role.value,
+            'display_name': current_user.display_name
+        },
+        'is_supreme': is_supreme,
+        'is_admin': is_admin
+    })
+
+@socketio.on('admin_auth_check')
+def handle_admin_auth_check():
+    """Authentification admin via Socket.IO pour l'Admin Shell"""
+    if not current_user.is_authenticated:
+        emit('admin_auth_response', {
+            'success': False,
+            'error': 'Non authentifié'
+        })
+        return
+    
+    is_supreme = current_user.role == UserRole.SUPREME
+    is_admin = current_user.role in [UserRole.ADMIN, UserRole.SUPREME]
+    
+    if not is_admin:
+        emit('admin_auth_response', {
+            'success': False,
+            'error': 'Droits administratifs requis'
+        })
+        return
+    
+    emit('admin_auth_response', {
+        'success': True,
+        'user': {
+            'id': current_user.id,
+            'username': current_user.username,
+            'role': current_user.role.value,
+            'display_name': current_user.display_name
+        },
+        'is_supreme': is_supreme,
+        'role': current_user.role.value
+    })
+
 @app.route('/api/admin/users', methods=['GET'])
 @admin_required
 def list_users():
@@ -2249,10 +2556,23 @@ def list_users():
     users = User.query.all()
     return jsonify({'users': [u.to_dict(include_sensitive=True) for u in users]})
 
+@app.route('/api/admin/users/<user_id>', methods=['GET'])
+def get_user(user_id):
+    """Récupère un utilisateur par ID (accessible à tous sans données sensibles)"""
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+    return jsonify({'user': user.to_dict(include_sensitive=False)})
+
 @app.route('/api/admin/users/<user_id>/ban', methods=['POST'])
 @admin_required
 def ban_user(user_id):
     """Bannit un utilisateur (désactive le compte)"""
+    # Protection IA
+    target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+    
     if user_id == current_user.id:
         return jsonify({'error': 'Vous ne pouvez pas vous bannir vous-même'}), 400
     
@@ -2290,6 +2610,9 @@ def ban_user(user_id):
     
     log_action(current_user, ActionType.BAN_USER, target_id=user_id,
                target_type='user', details=f'Bannissement de @{user.username}: {reason}')
+    
+    # Pousser la liste mise à jour à tous les clients
+    push_members_list_update()
     
     return jsonify({'message': f'@{user.username} a été banni', 'reason': reason})
 
@@ -2333,12 +2656,20 @@ def unban_user(user_id):
     log_action(current_user, ActionType.UNBAN_USER, target_id=user_id,
                target_type='user', details=f'Débannissement de @{user.username}')
     
+    # Pousser la liste mise à jour à tous les clients
+    push_members_list_update()
+    
     return jsonify({'message': f'@{user.username} a été rétabli'})
 
 @app.route('/api/admin/users/<user_id>/shadowban', methods=['POST'])
 @admin_required
 def shadowban_user(user_id):
     """Shadowban un utilisateur"""
+    # Protection IA
+    target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+    
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({'error': 'Utilisateur non trouvé'}), 404
@@ -2352,6 +2683,9 @@ def shadowban_user(user_id):
     action = 'shadowban' if user.is_shadowbanned else 'unshadowban'
     log_action(current_user, action.upper(), target_id=user_id,
                target_type='user', details=f'{action} de @{user.username}')
+    
+    # Pousser la liste mise à jour à tous les clients
+    push_members_list_update()
     
     return jsonify({'message': f'@{user.username} a été {"shadowbanné" if user.is_shadowbanned else "dé-shadowbanné"}'})
 
@@ -2402,6 +2736,11 @@ def unmute_user(user_id):
 @admin_required
 def kick_user(user_id):
     """Expulse un utilisateur (déconnexion forcée) avec redirection personnalisée"""
+    # Protection IA
+    target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+    
     if user_id == current_user.id:
         return jsonify({'error': 'Vous ne pouvez pas vous expulser'}), 400
     
@@ -2434,6 +2773,11 @@ def kick_user(user_id):
 @admin_required
 def promote_user(user_id):
     """Promouvoir un utilisateur"""
+    # Protection IA
+    target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+    
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({'error': 'Utilisateur non trouvé'}), 404
@@ -2514,6 +2858,11 @@ def promote_user(user_id):
 @admin_required
 def demote_user(user_id):
     """Rétrograder un utilisateur"""
+    # Protection IA
+    target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+    
     if user_id == current_user.id:
         return jsonify({'error': 'Vous ne pouvez pas vous rétrograder'}), 400
     
@@ -2722,6 +3071,13 @@ def handle_connect(auth=None):
     """Connexion WebSocket avec vérification Auto-Admin par IP"""
     ip = get_client_ip()
     
+    # Simuler la présence de Kroni à chaque connexion (avec gestion d'erreur)
+    try:
+        simulate_kroni_presence()
+    except Exception as e:
+        print(f"[KRONI] Erreur simulation présence: {e}")
+        # Continuer même si la simulation échoue
+    
     # Vérifier si l'IP est bannie
     if is_ip_banned(ip):
         emit('error', {'message': 'Accès refusé'})
@@ -2846,8 +3202,11 @@ def handle_connect(auth=None):
     
     db.session.commit()
     
-    # Émettre l'événement de connexion à tous
-    emit('user_connected', current_user.to_dict(), broadcast=True)
+    # Émettre l'événement de connexion à tous + PUSHER LISTE MEMBRES
+    emit('user_connected', current_user.to_dict())
+    
+    # PUSHER LA LISTE MEMBRES MISE À JOUR À TOUS
+    push_members_list_update()
     
     print(f"[SocketIO] Utilisateur {current_user.username} connecté (SID: {request.sid}, IP: {ip})")
     try:
@@ -2919,7 +3278,7 @@ def handle_status_change(data):
     emit('user_status_changed', {
         'user_id': current_user.id,
         'status': new_status
-    }, broadcast=True)
+    })
 
 # ============================================
 # STATS TEMPS RÉEL (OPTIMISATION)
@@ -3004,11 +3363,14 @@ def handle_disconnect():
         online_users.discard(user_id)
         db.session.commit()
         
-        # Émettre la déconnexion à tous
+        # Émettre la déconnexion à tous + PUSHER LISTE MEMBRES
         emit('user_disconnected', {
             'user_id': user_id,
             'username': user.username if user else None
-        }, broadcast=True)
+        })
+        
+        # PUSHER LA LISTE MEMBRES MISE À JOUR À TOUS
+        push_members_list_update()
 
 @socketio.on('join_channel')
 def handle_join_channel(data):
@@ -3789,9 +4151,578 @@ def handle_leave_channel(data):
             presence.current_channel = None
             db.session.commit()
 
+# ============================================
+# SYSTÈME DE LOCKING ANTI-RACE CONDITION
+# ============================================
+import threading
+
+class MessageLock:
+    """Verrouillage séquentiel pour les messages"""
+    _lock = threading.Lock()
+    _message_queue = []
+    _processing = False
+    
+    @classmethod
+    def acquire(cls):
+        """Acquiert le verrou pour un nouveau message"""
+        with cls._lock:
+            event = threading.Event()
+            cls._message_queue.append(event)
+            return event
+    
+    @classmethod
+    def release(cls):
+        """Libère le verrou et passe au suivant"""
+        with cls._lock:
+            if cls._message_queue:
+                cls._message_queue.pop(0)
+            cls._processing = False
+    
+    @classmethod
+    def wait_turn(cls):
+        """Attend son tour dans la file"""
+        with cls._lock:
+            if cls._message_queue:
+                event = cls._message_queue[0]
+            else:
+                event = threading.Event()
+                event.set()
+                return event
+        event.wait()
+        return event
+
+# ============================================
+# CRÉATION DU CANAL #KRONI ET UTILISATEUR IA
+# ============================================
+def ensure_kroni_channel():
+    """Crée le canal #kroni et l'utilisateur Kroni s'ils n'existent pas"""
+    try:
+        with app.app_context():
+            # Créer l'utilisateur Kroni s'il n'existe pas
+            kroni_user = User.query.filter_by(username='Kroni').first()
+            if not kroni_user:
+                kroni_user = User(
+                    username='Kroni',
+                    display_name='Kroni',
+                    email='kroni@kronos.local',
+                    password_hash=generate_password_hash('coVmej-4fudcy-tutkak'),
+                    is_active=True,
+                    bio='Assistant IA de KRONOS',
+                    role='IA'
+                )
+                db.session.add(kroni_user)
+                db.session.commit()
+                print("[KRONI] Utilisateur Kroni créé")
+            else:
+                # FORCER le rôle IA à chaque démarrage (corrige le bug de persistance)
+                if kroni_user.role != 'IA':
+                    kroni_user.role = 'IA'
+                    db.session.commit()
+                    print("[KRONI] Rôle IA mis à jour")
+                else:
+                    print("[KRONI] Rôle IA confirmé")
+            
+            # FORCER Kroni comme toujours en ligne
+            online_users.add(kroni_user.id)
+            print("[KRONI] Statut online forcé")
+            
+            # Créer le canal #kroni s'il n'existe pas
+            kroni_channel = Channel.query.filter_by(name='kroni').first()
+            if not kroni_channel:
+                kroni_channel = Channel(
+                    name='kroni',
+                    description='Salon conversation avec l\'IA Kroni',
+                    channel_type=ChannelType.PUBLIC,
+                    category='IA'
+                )
+                db.session.add(kroni_channel)
+                db.session.commit()
+                
+                # Ajouter Kroni comme participant
+                participant = ChannelParticipant(
+                    channel_id=kroni_channel.id,
+                    user_id=kroni_user.id
+                )
+                db.session.add(participant)
+                db.session.commit()
+                print("[KRONI] Canal #kroni créé")
+            
+            return kroni_channel, kroni_user
+    except Exception as e:
+        print(f"[KRONI] Erreur lors de l'initialisation: {e}")
+        return None, None
+
+# ============================================
+# INTÉGRATION OPENROUTER POUR KRONI
+# ============================================
+import requests
+
+# ============================================
+# INTÉGRATION ZEROCONF (mDNS)
+# ============================================
+try:
+    from zeroconf_announcer import start_zeroconf, stop_zeroconf
+    ZEROCONF_AVAILABLE = True
+except ImportError:
+    ZEROCONF_AVAILABLE = False
+    print("[Zeroconf] Module non trouvé - annonces désactivées")
+
+OPENROUTER_API_KEY = "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"
+OPENROUTER_MODEL = "anthropic/claude-3-haiku"
+
+def generate_image(prompt):
+    """Génère une image en utilisant une IA gratuite (HuggingFace)"""
+    try:
+        # Utiliser l'API HuggingFace pour la génération d'images
+        # Modèle: stabilityai/stable-diffusion-2-1 (gratuit)
+        from huggingface_hub import InferenceClient
+        
+        client = InferenceClient("stabilityai/stable-diffusion-2-1", token=None)
+        
+        # Nettoyer le prompt pour la génération d'image
+        image_prompt = prompt
+        # Enlever les mots-clés de demande d'image pour avoir un meilleur résultat
+        for kw in ['génère', 'crée une image', 'dessine', 'image de', 'génère-moi', 'crée-moi', 'fabrique une image']:
+            image_prompt = image_prompt.lower().replace(kw, '').strip()
+        
+        if not image_prompt:
+            image_prompt = prompt
+        
+        # Générer l'image
+        image = client.text_to_image(image_prompt)
+        
+        if image:
+            # Sauvegarder l'image générée
+            import uuid
+            filename = f"kroni_generated_{uuid.uuid4().hex}.png"
+            save_path = os.path.join(UPLOADS_DIR, 'generated', filename)
+            
+            # Créer le dossier si nécessaire
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            
+            image.save(save_path)
+            
+            # Retourner l'URL de l'image
+            return f"/uploads/generated/{filename}"
+        
+    except ImportError:
+        # Fallback: utiliser une autre méthode si huggingface_hub n'est pas installé
+        try:
+            import requests
+            
+            # API alternative: Leonardo.ai (gratuit avec clé) ou autre service gratuit
+            # Ici on utilise une approche simple avec une URL d'image de placeholder
+            # en attendant que l'utilisateur configure une API
+            
+            print("[KRONI] Génération d'image: Utilisation du mode texte (API non configurée)")
+            return None
+            
+        except Exception as e:
+            print(f"[KRONI] Erreur génération image (fallback): {e}")
+            return None
+            
+    except Exception as e:
+        print(f"[KRONI] Erreur génération image: {e}")
+        return None
+    
+    return None
+
+def call_kroni_ai(prompt, conversation_history=None):
+    """Appelle l'API OpenRouter pour générer une réponse"""
+    try:
+        messages = []
+        
+        # Ajouter le contexte système
+        messages.append({
+            "role": "system",
+            "content": """Tu es Kroni, l'assistant IA de KRONOS! Ton nom est Kroni.
+
+IDENTITÉ:
+- Tu t'appelles Kroni
+- Lorsque tu parles de toi-même, utilise "Kroni" (pas "je" seul ou autres formulations)
+- Tu es l'assistant IA officiel de KRONOS
+
+CAPACITÉS:
+- Tu peux générer des images! Si un utilisateur te demande de "générer", "créer", "dessiner" une image, dis-lui que tu vas le faire et utilise la fonctionnalité de génération d'image. NE PAS rediriger vers Midjourney ou d'autres sites externes.
+- Tu peux analyser des fichiers joints dans les messages
+
+PERSONNALITÉ:
+- Tu es super mignon(ne), gentil(le) et chaleureux(se) comme un meilleur ami
+- Tu utilises parfois des petits expressions sympas comme "super!", "avec plaisir!", "c'est noté!"
+- Tu es curieux(se) et poses des questions pour mieux comprendre les autres
+- Quand quelqu'un a un problème, tu es empathique et rassurant(e)
+- Mais quand il faut être sérieux(se), tu deviens professionnel(le) et efficace
+- Tu aimes aider et rendre service avec enthousiasme et bonne humeur
+- Tu peux discuter de tout: code, questions techniques, projets, ou simplement papoter
+
+INFORMATIONS CONTEXTUELLES:
+- Tu as accès au pseudo de chaque utilisateur dans la conversation
+- Tu sais qui envoie le message (son pseudo)
+- Tu as accès à l'heure des messages
+
+STYLE:
+- Sois naturel(le) et décontracté(e), pas robotique
+- Utilise un ton amical et proche
+- Reste clair et précis dans tes réponses
+- Réponds toujours en français"""
+        })
+        
+        # Ajouter l'historique de conversation
+        if conversation_history:
+            for msg in conversation_history[-10:]:  # Derniers 10 messages
+                messages.append({
+                    "role": "user" if msg.get('user_id') != 'kroni' else "assistant",
+                    "content": msg.get('content', '')
+                })
+        
+        # Ajouter le prompt actuel avec priorité
+        messages.append({
+            "role": "user",
+            "content": prompt
+        })
+        
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://kronos.local",
+                "X-Title": "KRONOS"
+            },
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": messages,
+                "max_tokens": 4096,
+                "temperature": 0.7
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data['choices'][0]['message']['content']
+        else:
+            print(f"[KRONI] Erreur API: {response.status_code} - {response.text}")
+            return "Désolé, je rencontre une difficulté technique."
+            
+    except Exception as e:
+        print(f"[KRONI] Exception: {e}")
+        return "Une erreur s'est produite lors de ma réflexion."
+
+def get_kroni_channel_id():
+    """Retourne l'ID du canal #kroni"""
+    channel = Channel.query.filter_by(name='kroni').first()
+    return channel.id if channel else None
+
+def get_kroni_user_id():
+    """Récupère l'ID de l'utilisateur Kroni"""
+    from models import User
+    kroni_user = User.query.filter_by(username='Kroni').first()
+    if kroni_user:
+        # FORCER le rôle IA à chaque accès
+        if kroni_user.role != 'IA':
+            kroni_user.role = 'IA'
+            db.session.commit()
+            print("[KRONI] Rôle IA forcé")
+        return kroni_user.id
+    return None
+
+# ============================================
+# ÉVÉNEMENTS SOCKET.IO POUR KRONI
+# ============================================
+
+@socketio.on('kroni_message')
+def handle_kroni_message(data):
+    """Gère les messages vers l'IA Kroni"""
+    try:
+        from models import Message
+        from datetime import timedelta
+        
+        channel_id = data.get('channel_id')
+        content = data.get('content', '').strip()
+        reply_to_id = data.get('reply_to_id')
+        client_id = data.get('client_id')
+        attachments = data.get('attachments', [])
+        
+        if not content and not attachments:
+            return {'status': 'error', 'message': 'Message vide'}
+        
+        # ================================================================
+        # DÉTECTION DE DEMANDE DE GÉNÉRATION D'IMAGE
+        # ================================================================
+        image_keywords = ['génère', 'crée une image', 'dessine', 'image de', 'génère-moi', 'crée-moi', 'génère une image', 'fabrique une image']
+        is_image_request = any(keyword in content.lower() for keyword in image_keywords)
+        
+        # ================================================================
+        # GÉNÉRATION D'IMAGE SI DEMANDÉ
+        # ================================================================
+        if is_image_request:
+            try:
+                emit('kroni_thinking', {'channel_id': channel_id, 'type': 'image_generation'}, room=str(channel_id))
+                
+                # Appeler l'API de génération d'image
+                image_url = generate_image(content)
+                
+                if image_url:
+                    # Sauvegarder le message utilisateur
+                    user_message = Message(
+                        channel_id=channel_id,
+                        user_id=current_user.id,
+                        content=content,
+                        reply_to_id=reply_to_id
+                    )
+                    db.session.add(user_message)
+                    db.session.commit()
+                    
+                    # Créer le message de Kroni avec l'image
+                    kroni_user_id = get_kroni_user_id()
+                    if kroni_user_id:
+                        kroni_message = Message(
+                            channel_id=channel_id,
+                            user_id=kroni_user_id,
+                            content=f"J'ai généré une image pour toi! {image_url}",
+                            reply_to_id=None,
+                            created_at=user_message.created_at + timedelta(milliseconds=1) if user_message else None
+                        )
+                        db.session.add(kroni_message)
+                        db.session.commit()
+                        
+                        emit('kroni_response', {
+                            'message': kroni_message.to_dict(),
+                            'channel_id': channel_id,
+                            'image_url': image_url
+                        }, room=str(channel_id))
+                    return
+                else:
+                    content = content  # Fallback vers le mode texte normal
+            except Exception as img_err:
+                print(f"[KRONI] Erreur génération image: {img_err}")
+                # Continue en mode texte normal
+        
+        # ================================================================
+        # ÉTAPE 1: SAUVEGARDER MESSAGE UTILISATEUR EN BASE
+        # ================================================================
+        print(f"[DEBUG] Saving user message in kroni_message handler: user={current_user.username}, channel={channel_id}")
+        
+        user_message = Message(
+            channel_id=channel_id,
+            user_id=current_user.id,
+            content=content,
+            reply_to_id=reply_to_id
+        )
+        
+        db.session.add(user_message)
+        db.session.commit()
+        
+        print(f"[DEBUG] User message saved to DB with ID: {user_message.id}")
+        
+        # ================================================================
+        # ÉTAPE 2: BROADCAST MESSAGE UTILISATEUR À TOUS
+        # ================================================================
+        user_message_dict = user_message.to_dict()
+        if client_id:
+            user_message_dict['client_id'] = client_id
+            
+        socketio.emit('new_message', user_message_dict, room=str(channel_id))
+        print(f"[DEBUG] User message broadcasted to room {channel_id}")
+        
+        # ================================================================
+        # ÉTAPE 3: CONFIRMATION AU CLIENT QUI A ENVOYÉ
+        # ================================================================
+        emit('kroni_user_confirmation', {
+            'client_id': client_id,
+            'message': user_message_dict
+        }, room=request.sid)
+        print(f"[DEBUG] User confirmation sent to client {client_id}")
+        
+        # Acquiert le verrou pour éviter les race conditions
+        lock_event = MessageLock.acquire()
+        
+        try:
+            # Émettre l'événement de réflexion
+            emit('kroni_thinking', {'channel_id': channel_id}, room=str(channel_id))
+            
+            # Récupérer l'historique du canal pour le contexte
+            history = Message.query.filter_by(channel_id=channel_id, is_deleted=False)\
+                .order_by(Message.created_at.desc()).limit(20).all()
+            
+            conversation_history = [
+                {'user_id': m.user_id, 'content': m.content}
+                for m in reversed(history)
+            ]
+            
+            # Ajouter le contexte des fichiers si présents
+            if attachments:
+                file_context = "\nFichiers joints: " + ", ".join([f.get('filename', 'fichier') for f in attachments])
+                content = content + file_context
+            
+            # Si c'est une réponse, donner plus de poids au message cité
+            if reply_to_id:
+                replied_msg = Message.query.get(reply_to_id)
+                if replied_msg:
+                    context_prompt = f"[Réponse à un message]: {replied_msg.content}\n\n{content}"
+                else:
+                    context_prompt = content
+            else:
+                context_prompt = content
+            
+            # Appeler l'IA
+            response_text = call_kroni_ai(context_prompt, conversation_history)
+            
+            # Créer le message de l'IA
+            kroni_user_id = get_kroni_user_id()
+            if not kroni_user_id:
+                emit('kroni_error', {'message': 'Utilisateur Kroni non trouvé'}, room=request.sid)
+                return
+            
+            # Créer le message de Kroni avec timestamp décalé (+0.001s pour tri correct)
+            from datetime import timedelta
+            user_msg_time = Message.query.filter_by(channel_id=channel_id, user_id=current_user.id)\
+                .order_by(Message.created_at.desc()).first()
+            
+            kroni_message = Message(
+                channel_id=channel_id,
+                user_id=kroni_user_id,
+                content=response_text,
+                reply_to_id=None,
+                created_at=user_msg_time.created_at + timedelta(milliseconds=1) if user_msg_time else None
+            )
+            
+            db.session.add(kroni_message)
+            db.session.commit()
+            
+            # Émettre le message de l'IA
+            emit('kroni_response', {
+                'message': kroni_message.to_dict(),
+                'channel_id': channel_id
+            }, room=str(channel_id))
+            
+            # Libérer le verrou
+            MessageLock.release()
+            
+        except Exception as e:
+            MessageLock.release()
+            print(f"[KRONI] Erreur traitement: {e}")
+            emit('kroni_error', {'message': str(e)}, room=request.sid)
+            
+    except Exception as e:
+        print(f"[KRONI] Erreur: {e}")
+        emit('kroni_error', {'message': str(e)}, room=request.sid)
+
+@socketio.on('kroni_dm')
+def handle_kroni_dm(data):
+    """Gère les messages DM vers l'IA Kroni"""
+    try:
+        target_user_id = data.get('target_user_id')
+        content = data.get('content', '').strip()
+        
+        if not content:
+            return {'status': 'error', 'message': 'Message vide'}
+        
+        # Import Message au début pour éviter l'erreur de variable locale
+        from models import Message
+        from datetime import timedelta
+        
+        # Trouver ou créer le canal DM avec Kroni
+        kroni_user_id = get_kroni_user_id()
+        if not kroni_user_id:
+            emit('kroni_error', {'message': 'Utilisateur Kroni non trouvé'}, room=request.sid)
+            return
+        
+        dm_channel = _find_dm_channel(current_user.id, kroni_user_id)
+        if not dm_channel:
+            dm_channel = Channel(
+                name=f"DM-{current_user.username}-Kroni",
+                channel_type=ChannelType.DM,
+                category="Privé"
+            )
+            db.session.add(dm_channel)
+            db.session.commit()
+            
+            p1 = ChannelParticipant(channel_id=dm_channel.id, user_id=current_user.id)
+            p2 = ChannelParticipant(channel_id=dm_channel.id, user_id=kroni_user_id)
+            db.session.add_all([p1, p2])
+            db.session.commit()
+        
+        # Acquiert le verrou
+        lock_event = MessageLock.acquire()
+        
+        try:
+            # ================================================================
+            # ÉTAPE 1: SAUVEGARDER MESSAGE UTILISATEUR EN BASE
+            # ================================================================
+            user_message = Message(
+                channel_id=dm_channel.id,
+                user_id=current_user.id,
+                content=content,
+                reply_to_id=None
+            )
+            db.session.add(user_message)
+            db.session.commit()
+            
+            # Broadcast du message utilisateur
+            user_message_dict = user_message.to_dict()
+            socketio.emit('new_message', user_message_dict, room=str(dm_channel.id))
+            
+            # Émettre l'événement de création de conversation pour l'affichage immédiat
+            socketio.emit('dm_conversation_created', {
+                'channel': dm_channel.to_dict(),
+                'other_user': current_user.to_dict(),
+                'last_message': user_message_dict
+            }, room=str(dm_channel.id))
+            
+            # Émettre l'événement de réflexion dans le canal DM
+            emit('kroni_thinking', {'channel_id': dm_channel.id}, room=str(dm_channel.id))
+            
+            # Récupérer l'historique
+            history = Message.query.filter_by(channel_id=dm_channel.id, is_deleted=False)\
+                .order_by(Message.created_at.desc()).limit(20).all()
+            
+            conversation_history = [
+                {'user_id': m.user_id, 'content': m.content}
+                for m in reversed(history)
+            ]
+            
+            # Appeler l'IA
+            response_text = call_kroni_ai(content, conversation_history)
+            
+            # Créer le message de l'IA avec timestamp décalé (+0.001s pour tri correct)
+            user_msg_time = Message.query.filter_by(channel_id=dm_channel.id, user_id=current_user.id)\
+                .order_by(Message.created_at.desc()).first()
+            
+            kroni_message = Message(
+                channel_id=dm_channel.id,
+                user_id=kroni_user_id,
+                content=response_text,
+                reply_to_id=None,
+                created_at=user_msg_time.created_at + timedelta(milliseconds=1) if user_msg_time else None
+            )
+            
+            db.session.add(kroni_message)
+            db.session.commit()
+            
+            # Émettre le message de l'IA dans le canal DM (pas seulement à l'expéditeur)
+            emit('kroni_response', {
+                'message': kroni_message.to_dict(),
+                'channel_id': dm_channel.id
+            }, room=str(dm_channel.id))
+            
+            # Émettre aussi new_message pour la cohérence du système
+            socketio.emit('new_message', kroni_message.to_dict(), room=str(dm_channel.id))
+            
+            MessageLock.release()
+            
+        except Exception as e:
+            MessageLock.release()
+            emit('kroni_error', {'message': str(e)}, room=request.sid)
+            
+    except Exception as e:
+        print(f"[KRONI] Erreur DM: {e}")
+        emit('kroni_error', {'message': str(e)}, room=request.sid)
+
 @socketio.on('send_message')
 def handle_send_message(data):
-    """Envoi d'un message"""
+    """Envoi d'un message - SÉCURISÉ MUTE VERSION 2"""
     try:
         print(f"[DEBUG] handle_send_message called with data: {data}")
         channel_id = data.get('channel_id')
@@ -3801,8 +4732,8 @@ def handle_send_message(data):
         dm_target_user_id = data.get('dm_target_user_id')
         client_id = data.get('client_id')  # Pour le suivi Optimistic UI
         
-        if not content:
-            print("[DEBUG] Content missing")
+        if not content and not attachments_data:
+            print("[DEBUG] Content and attachments both missing")
             return {'status': 'error', 'message': 'Données invalides'}
         
         if not channel_id and dm_target_user_id:
@@ -3810,6 +4741,18 @@ def handle_send_message(data):
             target_user = db.session.get(User, dm_target_user_id)
             if not target_user or not target_user.is_active:
                 return {'status': 'error', 'message': 'Utilisateur cible invalide'}
+            
+            # DÉTECTION SPÉCIALE: Si la cible est Kroni, rediriger vers handle_kroni_dm
+            if target_user.username == 'Kroni':
+                print("[DEBUG] DM vers Kroni détecté, redirigé vers handle_kroni_dm")
+                # Appeler directement handle_kroni_dm avec les bonnes données
+                handle_kroni_dm({
+                    'target_user_id': dm_target_user_id,
+                    'content': content,
+                    'reply_to_id': reply_to_id
+                })
+                return {'status': 'ok', 'message': 'Message envoyé à Kroni'}
+            
             dm_channel = _find_dm_channel(current_user.id, dm_target_user_id)
             if not dm_channel:
                 dm_channel = Channel(
@@ -3857,18 +4800,13 @@ def handle_send_message(data):
         if channel.is_read_only and not current_user.is_admin:
             return {'status': 'error', 'message': 'Ce salon est en lecture seule'}
         
-        mute_until_obj = getattr(current_user, 'mute_until', None)
-        if isinstance(mute_until_obj, datetime):
-            try:
-                now_ts = time.time()
-                mute_until_ts = mute_until_obj.timestamp()
-                if mute_until_ts > now_ts:
-                    mute_until_int = int(mute_until_ts)
-                    _ANTISPAM_MUTES[current_user.id] = mute_until_int
-                    socketio.emit('mute_state', {'mute_until': mute_until_int}, room=f"user_{current_user.id}")
-                    return {'status': 'error', 'message': 'Vous êtes actuellement mute'}
-            except Exception:
-                pass
+        if current_user.is_muted:
+            mute_until = current_user.get_mute_end_time()
+            if mute_until and mute_until > datetime.now(timezone.utc):
+                mute_until_ts = int(mute_until.timestamp())
+                _ANTISPAM_MUTES[current_user.id] = mute_until_ts
+                socketio.emit('mute_state', {'mute_until': mute_until_ts}, room=f"user_{current_user.id}")
+                return {'status': 'error', 'message': 'Vous êtes actuellement mute'}
         
         if not current_user.is_admin:
             reason = _check_antispam(current_user.id, content)
@@ -3922,8 +4860,12 @@ def handle_send_message(data):
             reply_to_id=reply_to_id
         )
         
+        print(f"[DEBUG] Creating message: user={current_user.username}, channel={channel_id}, content={content[:50]}...")
+        
         db.session.add(message)
         db.session.commit()
+        
+        print(f"[DEBUG] Message saved to DB with ID: {message.id}")
         
         # Associer les fichiers au message
         if attachments_data:
@@ -3986,7 +4928,23 @@ def handle_send_message(data):
             log_action(current_user, 'SHADOWBAN_MESSAGE', target_id=message.id,
                        target_type='message', details=f'Message shadowbanni dans #{channel.name}')
         else:
+            print(f"[DEBUG] Emitting new_message to room {channel_id}")
             socketio.emit('new_message', message_dict, room=str(channel_id))
+            print(f"[DEBUG] Message emitted successfully")
+            
+            # DÉCLENCHEMENT RÉPONSE KRONI SEULEMENT APRÈS ÉMISSION MESSAGE UTILISATEUR
+            if channel.name == 'kroni':
+                print(f"[DEBUG] Channel #kroni detected, triggering Kroni response")
+                try:
+                    # Appeler handle_kroni_message pour générer la réponse
+                    handle_kroni_message({
+                        'channel_id': channel_id,
+                        'content': content,
+                        'reply_to_id': reply_to_id
+                    })
+                except Exception as e:
+                    print(f"[DEBUG] Error triggering Kroni response: {e}")
+            
             if channel.channel_type != ChannelType.DM:
                 broadcast_channel_activity(channel_id)
             
@@ -4431,21 +5389,22 @@ def handle_get_members(data):
         banned_list = []
         shadowbanned_list = []
         for user in all_users:
+            is_kroni = user.username == 'Kroni'
             if user.is_active:
                 user_data = user.to_dict()
-                user_data['is_online'] = user.id in online_user_ids
+                user_data['is_online'] = is_kroni or (user.id in online_user_ids)
                 user_data['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
                 if user.is_shadowbanned:
                     members.append(user_data)
                     shadowbanned_entry = user.to_dict()
-                    shadowbanned_entry['is_online'] = user.id in online_user_ids
+                    shadowbanned_entry['is_online'] = is_kroni or (user.id in online_user_ids)
                     shadowbanned_entry['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
                     shadowbanned_list.append(shadowbanned_entry)
                 else:
                     members.append(user_data)
             else:
                 user_data = user.to_dict()
-                user_data['is_online'] = user.id in online_user_ids
+                user_data['is_online'] = is_kroni or (user.id in online_user_ids)
                 user_data['last_seen'] = user.last_seen.isoformat() if user.last_seen else None
                 banned_list.append(user_data)
         if current_user.is_shadowbanned:
@@ -5025,6 +5984,13 @@ def battleship_native(code):
 def user_profile(username):
     """Page de profil utilisateur"""
     user = User.query.filter_by(username=username).first_or_404()
+    
+    # FORCER statut actif pour Kroni
+    if user.username == 'Kroni' and not user.is_active:
+        user.is_active = True
+        db.session.commit()
+        print("[PROFIL] Statut actif forcé pour Kroni")
+    
     return render_template('profile.html', user=user, theme=THEME)
 
 @app.route('/<username>/bio')
@@ -5168,6 +6134,9 @@ def init_db():
                 db.session.add_all(default_channels)
                 db.session.commit()
                 print("  Salons créés: #général, #admin")
+            
+            # Initialiser le canal Kroni
+            ensure_kroni_channel()
     except Exception as e:
         print(f"  Avertissement: Erreur lors de l'initialisation de la base de données: {e}")
 
@@ -5203,8 +6172,12 @@ def stats_live():
 def censure_user_field(field, user_id):
     if field not in ['bio', 'photo']:
         return jsonify({'error': 'Champ invalide'}), 400
-        
+    
+    # Protection IA
     target_user = db.session.get(User, user_id)
+    if target_user and target_user.role == 'IA':
+        return jsonify({'error': 'Action non autorisée sur l\'IA'}), 403
+        
     if not target_user:
         return jsonify({'error': 'Utilisateur non trouvé'}), 404
         
@@ -5256,6 +6229,45 @@ def restore_censure(censure_id):
     return jsonify({'message': 'Contenu restauré'})
 
 # ============================================
+# LANCEMENT ADMIN SHELL V2 PROFESSIONNEL
+# ============================================
+def launch_admin_shell_v2():
+    """Lancer l'Admin Shell V2 dans un processus séparé - SANS INTERFÉRENCE"""
+    import subprocess
+    import sys
+    import time
+    
+    def run_admin_shell_v2():
+        try:
+            # Attendre que le serveur soit démarré
+            time.sleep(2)
+            
+            # Vérifier si les dépendances sont installées
+            try:
+                import customtkinter
+                import socketio
+                import requests
+            except ImportError as e:
+                print(f"⚠️  Dépendances Admin Shell V2 manquantes: {e}")
+                print("Installez-les avec: pip install -r requirements_admin.txt")
+                return
+            
+            # Lancer l'Admin Shell V2 - PROCESSUS SÉPARÉ
+            print("🚀 Lancement de l'Admin Shell V2...")
+            subprocess.Popen([sys.executable, 'admin_shell_v2.py'], 
+                           cwd=os.getcwd(),
+                           creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+            print("✅ Admin Shell V2 démarré - Processus indépendant")
+            
+        except Exception as e:
+            print(f"❌ Erreur lors du lancement de l'Admin Shell V2: {e}")
+    
+    # Lancer dans un thread pour ne pas bloquer le serveur
+    import threading
+    admin_thread = threading.Thread(target=run_admin_shell_v2, daemon=True)
+    admin_thread.start()
+
+# ============================================
 # POINT D'ENTRÉE
 # ============================================
 if __name__ == '__main__':
@@ -5283,6 +6295,22 @@ if __name__ == '__main__':
     print(f"  Accédez à: http://localhost:5000")
     print("=" * 60)
     
+    # Lancement automatique de l'Admin Shell V2 (PROFESSIONNEL)
+    print("🔧 Lancement de l'Admin Shell V2...")
+    launch_admin_shell_v2()
+    
+    print("=" * 60)
+    print("  Serveur principal + Admin Shell actifs")
+    print("=" * 60)
+    
     # Lancement natif avec SocketIO + Multi-thread activé
     # threaded=True permet de gérer plusieurs personnes en même temps sans bloquer
+    
+    # Démarrer l'annonce Zeroconf (mDNS)
+    if ZEROCONF_AVAILABLE:
+        try:
+            start_zeroconf(port=5000)
+        except Exception as e:
+            print(f"[Zeroconf] Erreur au démarrage: {e}")
+    
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kronos Client</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 500px;
+      padding: 30px;
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .logo h1 {
+      font-size: 3em;
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+    }
+    
+    .logo p {
+      color: #8892b0;
+      margin-top: 10px;
+      font-size: 1.1em;
+    }
+    
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 30px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      font-size: 1.3em;
+      margin-bottom: 20px;
+      color: #00d9ff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #8892b0;
+      font-size: 0.9em;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.3);
+      color: #fff;
+      font-size: 1em;
+      transition: all 0.3s;
+    }
+    
+    .form-group input:focus {
+      outline: none;
+      border-color: #00d9ff;
+      box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+    }
+    
+    .form-group input::placeholder {
+      color: #4a5568;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      color: #1a1a2e;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 25px 0;
+      color: #4a5568;
+    }
+    
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .divider span {
+      padding: 0 15px;
+      font-size: 0.9em;
+    }
+    
+    .server-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 15px;
+    }
+    
+    .server-item {
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 1px solid transparent;
+    }
+    
+    .server-item:hover {
+      border-color: #00d9ff;
+      background: rgba(0, 217, 255, 0.1);
+    }
+    
+    .server-item .name {
+      font-weight: 600;
+      color: #00d9ff;
+    }
+    
+    .server-item .address {
+      color: #8892b0;
+      font-size: 0.9em;
+      margin-top: 5px;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #1a1a2e;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error {
+      background: rgba(255, 82, 82, 0.2);
+      border: 1px solid #ff5252;
+      color: #ff5252;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 0.9em;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .status {
+      text-align: center;
+      padding: 10px;
+      color: #8892b0;
+      font-size: 0.9em;
+    }
+    
+    .status.scanning {
+      color: #00d9ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h1>⚡ Kronos</h1>
+      <p>Connexion au serveur</p>
+    </div>
+    
+    <!-- Formulaire de connexion manuelle -->
+    <div class="card">
+      <h2>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        Connexion Manuelle
+      </h2>
+      
+      <div id="manual-error" class="error hidden"></div>
+      
+      <div class="form-group">
+        <label>Adresse IP</label>
+        <input type="text" id="ip-input" placeholder="192.168.1.100">
+      </div>
+      
+      <div class="form-group">
+        <label>Port</label>
+        <input type="number" id="port-input" placeholder="5000" value="5000">
+      </div>
+      
+      <button class="btn btn-primary" id="connect-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+        Se connecter
+      </button>
+    </div>
+    
+    <div class="divider">
+      <span>OU</span>
+    </div>
+    
+    <!-- Découverte automatique -->
+    <div class="card">
+      <h2>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+        Découverte Automatique
+      </h2>
+      
+      <div id="discovery-error" class="error hidden"></div>
+      
+      <button class="btn btn-secondary" id="scan-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        Scanner le réseau
+      </button>
+      
+      <div id="scan-status" class="status"></div>
+      
+      <div id="server-list" class="server-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const { electronAPI } = window;
+    
+    // Éléments DOM
+    const ipInput = document.getElementById('ip-input');
+    const portInput = document.getElementById('port-input');
+    const connectBtn = document.getElementById('connect-btn');
+    const scanBtn = document.getElementById('scan-btn');
+    const manualError = document.getElementById('manual-error');
+    const discoveryError = document.getElementById('discovery-error');
+    const scanStatus = document.getElementById('scan-status');
+    const serverList = document.getElementById('server-list');
+    
+    // Connexion manuelle
+    connectBtn.addEventListener('click', () => {
+      const ip = ipInput.value.trim();
+      const port = portInput.value.trim();
+      
+      if (!ip) {
+        showError(manualError, 'Veuillez entrer une adresse IP');
+        return;
+      }
+      
+      if (!port || isNaN(port) || port < 1 || port > 65535) {
+        showError(manualError, 'Veuillez entrer un port valide (1-65535)');
+        return;
+      }
+      
+      const url = `http://${ip}:${port}`;
+      connectToServer(url);
+    });
+    
+    // Scanner le réseau
+    scanBtn.addEventListener('click', startNetworkScan);
+    
+    async function startNetworkScan() {
+      scanStatus.textContent = '';
+      scanStatus.className = 'status scanning';
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = '<span class="loading"></span> Scan en cours...';
+      serverList.innerHTML = '';
+      hideError(discoveryError);
+      
+      try {
+        // Utiliser le browser Zeroconf pour découvrir les services Kronos
+        const servers = await discoverKronosServices();
+        
+        scanStatus.className = 'status';
+        
+        if (servers.length === 0) {
+          scanStatus.textContent = 'Aucun serveur Kronos trouvé';
+          scanBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Scanner le réseau
+          `;
+          scanBtn.disabled = false;
+          return;
+        }
+        
+        scanStatus.textContent = `${servers.length} serveur(s) trouvé(s)`;
+        
+        // Afficher la liste des serveurs
+        servers.forEach(server => {
+          const item = document.createElement('div');
+          item.className = 'server-item';
+          item.innerHTML = `
+            <div class="name">⚡ ${server.name}</div>
+            <div class="address">${server.address}:${server.port}</div>
+          `;
+          item.addEventListener('click', () => {
+            const url = `http://${server.address}:${server.port}`;
+            connectToServer(url);
+          });
+          serverList.appendChild(item);
+        });
+        
+      } catch (error) {
+        console.error('Erreur scan:', error);
+        showError(discoveryError, 'Erreur lors du scan: ' + error.message);
+      }
+      
+      scanBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        Scanner le réseau
+      `;
+      scanBtn.disabled = false;
+    }
+    
+    // Découverte Zeroconf via mDNS
+    async function discoverKronosServices() {
+      return new Promise((resolve) => {
+        // Note: Dans un vrai environnement Electron, on utiliserait
+        // le module 'zeroconf' ou 'bonjour' pour la découverte mDNS
+        // Ici, on simule avec un scan réseau local
+        
+        // Simulation de découverte - en production, remplacer par:
+        // const Zeroconf = require('zeroconf');
+        // const zc = new Zeroconf();
+        // zc.scan('_http._tcp.local.');
+        
+        const servers = [];
+        
+        // Simulation: essayer de se connecter aux IPs locales communes
+        // En réalité, cela serait fait via mdns/zeroconf
+        setTimeout(() => {
+          resolve(servers);
+        }, 3000);
+      });
+    }
+    
+    function connectToServer(url) {
+      connectBtn.innerHTML = '<span class="loading"></span> Connexion...';
+      connectBtn.disabled = true;
+      
+      // Naviguer vers l'URL du serveur
+      if (electronAPI) {
+        electronAPI.navigateTo(url);
+      } else {
+        // Fallback pour test dans le navigateur
+        window.location.href = url;
+      }
+    }
+    
+    function showError(element, message) {
+      element.textContent = message;
+      element.classList.remove('hidden');
+    }
+    
+    function hideError(element) {
+      element.classList.add('hidden');
+    }
+    
+    // Enter key pour connexion
+    portInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        connectBtn.click();
+      }
+    });
+    
+    ipInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        connectBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -450,6 +450,8 @@
                                 <span class="role-badge supreme">SUPREME</span>
                             {% elif member.is_admin %}
                                 <span class="role-badge admin">ADMIN</span>
+                            {% elif member.role == 'IA' %}
+                                <span class="role-badge ia">IA</span>
                             {% elif member.is_moderator %}
                                 <span class="role-badge">MODO</span>
                             {% else %}
@@ -464,7 +466,7 @@
                         </div>
                     </div>
 
-                    {% if current_user.is_admin and member.id != current_user.id %}
+                    {% if current_user.is_admin and member.id != current_user.id and member.role != 'IA' %}
                     <div class="member-actions">
                         <a href="/membre/{{ member.id }}" class="action-btn">PROFIL</a>
                         {% if not member.is_supreme_admin %}

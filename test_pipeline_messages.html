@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Pipeline Messages</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { border-color: green; background: #f0fff0; }
+        .fail { border-color: red; background: #fff0f0; }
+        .step { margin: 5px 0; font-weight: bold; }
+        .debug { font-family: monospace; background: #f5f5f5; padding: 5px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Test Pipeline Messages - Instructions</h1>
+    
+    <div class="test-result">
+        <h2>📋 Instructions de Test</h2>
+        
+        <div class="step">ÉTAPE 1: Ouvrir 2 navigateurs différents</div>
+        <div class="step">ÉTAPE 2: Connecter 2 utilisateurs différents</div>
+        <div class="step">ÉTAPE 3: Aller dans le canal #kroni</div>
+        
+        <div class="step">TEST 1: Utilisateur A envoie un message</div>
+        <div class="debug">✅ Attendu: Message apparaît immédiatement chez A et B</div>
+        <div class="debug">✅ Attendu: Pas de chargement infini</div>
+        <div class="debug">✅ Attendu: Kroni répond après le message</div>
+        
+        <div class="step">TEST 2: Recharger la page</div>
+        <div class="debug">✅ Attendu: Message utilisateur reste présent</div>
+        <div class="debug">✅ Attendu: Ordre chronologique respecté</div>
+        
+        <div class="step">TEST 3: Redémarrer le serveur</div>
+        <div class="debug">✅ Attendu: Message reste en base de données</div>
+        <div class="debug">✅ Attendu: Message apparaît au rechargement</div>
+        
+        <h3>🔍 Debug Console</h3>
+        <div class="debug">
+            Ouvrir la console F12 et vérifier:<br>
+            - [DEBUG] handle_send_message called<br>
+            - [DEBUG] Creating message<br>
+            - [DEBUG] Message saved to DB<br>
+            - [DEBUG] Emitting new_message<br>
+            - [DEBUG] confirmOptimisticMessage called<br>
+            - [DEBUG] Updating message in state<br>
+            - [DEBUG] Updating DOM element
+        </div>
+        
+        <h3>🐛 Problèmes à Surveiller</h3>
+        <div class="debug">
+            ❌ Message reste en chargement infini<br>
+            ❌ Message utilisateur n'apparaît pas chez l'autre<br>
+            ❌ Message disparaît après rechargement<br>
+            ❌ Ordre incorrect (réponse avant question)<br>
+            ❌ Erreur "processEmbeds is not a function"<br>
+        </div>
+    </div>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        // Test de la fonction processEmbeds
+        function processEmbeds(content) {
+            if (!content) return content;
+            
+            try {
+                // YouTube
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                content = content.replace(/(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                return content;
+            } catch (e) {
+                console.error('Erreur processEmbeds:', e);
+                return content;
+            }
+        }
+        
+        function formatMessageContent(content) {
+            if (!content) return '';
+            
+            let formatted = content;
+            
+            // URLs simples
+            formatted = formatted.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+            
+            // Embeds
+            if (formatted.includes('youtube.com') || formatted.includes('youtu.be')) {
+                if (typeof processEmbeds === 'function') {
+                    formatted = processEmbeds(formatted);
+                } else {
+                    console.error('processEmbeds is not a function!');
+                    return formatted;
+                }
+            }
+            
+            return formatted;
+        }
+        
+        // Tests
+        const tests = [
+            {
+                name: "processEmbeds existe",
+                test: () => typeof processEmbeds === 'function'
+            },
+            {
+                name: "formatMessageContent avec processEmbeds",
+                test: () => {
+                    const result = formatMessageContent("Regarde https://youtube.com/watch?v=test");
+                    return result.includes('embed-youtube');
+                }
+            },
+            {
+                name: "formatMessageContent sans processEmbeds",
+                test: () => {
+                    const originalProcessEmbeds = window.processEmbeds;
+                    window.processEmbeds = undefined;
+                    const result = formatMessageContent("Regarde https://youtube.com/watch?v=test");
+                    window.processEmbeds = originalProcessEmbeds;
+                    return !result.includes('embed-youtube');
+                }
+            }
+        ];
+        
+        const results = tests.map(test => {
+            try {
+                const passed = test.test();
+                return {
+                    name: test.name,
+                    passed: passed,
+                    error: null
+                };
+            } catch (e) {
+                return {
+                    name: test.name,
+                    passed: false,
+                    error: e.message
+                };
+            }
+        });
+        
+        const resultsDiv = document.getElementById('test-results');
+        resultsDiv.innerHTML = '<h2>🧪 Résultats des Tests Automatisés</h2>' + 
+            results.map(r => `
+                <div class="test-result ${r.passed ? 'pass' : 'fail'}">
+                    <strong>${r.name}</strong>: ${r.passed ? '✅ PASS' : '❌ FAIL'}<br>
+                    ${r.error ? `<small>Erreur: ${r.error}</small>` : ''}
+                </div>
+            `).join('');
+        
+        console.log('Résultats des tests:', results);
+    </script>
+</body>
+</html>

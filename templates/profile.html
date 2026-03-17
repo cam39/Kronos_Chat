@@ -279,7 +279,7 @@
                     <button class="avatar-upload-btn" id="btn-avatar-upload" title="Changer la photo">Modifier</button>
                     <input type="file" id="avatar-file" accept="image/*" style="display:none">
                 {% endif %}
-                {% if current_user.is_authenticated and current_user.is_admin and current_user.id != user.id and (not user.is_supreme) and (not user.is_admin or current_user.is_supreme) %}
+                {% if current_user.is_authenticated and current_user.is_admin and current_user.id != user.id and (not user.is_supreme) and (not user.is_admin or current_user.is_supreme) and user.role != 'IA' %}
                     <button class="avatar-upload-btn" onclick="censureField('photo', '{{ user.id }}')" style="background: #ff4444; border-color: #ff4444; color: white; right: auto; left: 6px;" title="Censurer la photo">CENSURER</button>
                 {% endif %}
             </div>
@@ -293,6 +293,8 @@
                         <span class="role-badge supreme">SUPREME ADMIN</span>
                     {% elif user.is_admin %}
                         <span class="role-badge admin">ADMINISTRATEUR</span>
+                    {% elif user.role == 'IA' %}
+                        <span class="role-badge ia">IA</span>
                     {% elif user.role == 'moderator' %}
                         <span class="role-badge">MODÉRATEUR</span>
                     {% else %}
@@ -327,7 +329,7 @@
                 {% else %}
                     <span class="empty-bio">Aucune information biographique transmise pour cette unité.</span>
                 {% endif %}
-                {% if current_user.is_authenticated and current_user.is_admin and current_user.id != user.id and (not user.is_supreme) and (not user.is_admin or current_user.is_supreme) %}
+                {% if current_user.is_authenticated and current_user.is_admin and current_user.id != user.id and (not user.is_supreme) and (not user.is_admin or current_user.is_supreme) and user.role != 'IA' %}
                     <br><br>
                     <button onclick="censureField('bio', '{{ user.id }}')" style="background: #ff4444; color: white; border: none; padding: 5px 10px; cursor: pointer; font-size: 0.7rem;">CENSURER BIO</button>
                 {% endif %}

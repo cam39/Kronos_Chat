@@ -239,3 +239,9 @@ ANTISPAM_REPEAT_CHAR_MIN = int(os.environ.get('KRONOS_ANTISPAM_REPEAT_CHAR_MIN',
 # ============================================
 DEBUG = os.environ.get('KRONOS_DEBUG', 'False').lower() == 'true'
 AUTO_REPAIR_DB = os.environ.get('KRONOS_AUTO_REPAIR_DB', 'False').lower() == 'true'
+
+# ============================================
+# PANNEAU ADMIN
+# ============================================
+ADMIN_PANEL_ENABLED = os.environ.get('KRONOS_ADMIN_PANEL_ENABLED', 'True').lower() == 'true'
+ADMIN_PANEL_PORT = int(os.environ.get('KRONOS_ADMIN_PANEL_PORT', '5001'))

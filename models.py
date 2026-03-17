@@ -24,6 +24,7 @@ class UserRole:
     MODERATOR = "moderator"
     ADMIN = "admin"
     SUPREME = "supreme"
+    IA = "IA"
 
 class MessageType:
     TEXT = "text"
@@ -68,6 +69,7 @@ class User(UserMixin, db.Model):
     
     # Rôle et statut
     role = db.Column(db.String(20), default=UserRole.MEMBER, nullable=False)
+    previous_role = db.Column(db.String(50), default='member', server_default='member')  # Rôle précédent pour fallback IP Admin
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_shadowbanned = db.Column(db.Boolean, default=False, nullable=False)
     
@@ -83,6 +85,17 @@ class User(UserMixin, db.Model):
     last_ip = db.Column(db.String(45), nullable=True)  # Dernière IP de connexion
     
     mute_until = db.Column(db.DateTime, nullable=True)
+    
+    @property
+    def is_muted(self):
+        """Vérifie si l'utilisateur est actuellement mute"""
+        if not self.mute_until:
+            return False
+        mute_time = self.mute_until
+        # Rendre timezone-aware si nécessaire
+        if mute_time.tzinfo is None:
+            mute_time = mute_time.replace(tzinfo=timezone.utc)
+        return mute_time > get_current_utc_time()
     
     # Récupération de compte
     reset_token = db.Column(db.String(36), nullable=True)
@@ -115,6 +128,9 @@ class User(UserMixin, db.Model):
     def get_avatar_url(self):
         if self.avatar_filename:
             return f"/uploads/avatars/{self.avatar_filename}"
+        # Priorité avatar Kroni
+        if self.username == 'Kroni':
+            return "/static/icons/kroni_avatar.svg"
         return "/static/icons/default_avatar.svg"
     
     def get_banner_url(self):
@@ -143,14 +159,14 @@ class User(UserMixin, db.Model):
             'is_active': self.is_active,
             'is_shadowbanned': self.is_shadowbanned,
             'ban_reason': self.ban_reason if include_sensitive else None,
-            'banned_at': self.banned_at.isoformat() if self.banned_at else None,
+            'banned_at': self.banned_at.strftime('%Y-%m-%dT%H:%M:%S') if self.banned_at else None,
             'banned_by': self.banned_by if include_sensitive else None,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_seen': self.last_seen.strftime('%Y-%m-%dT%H:%M:%S') if self.last_seen else None,
+            'created_at': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
             'last_ip': self.last_ip if include_sensitive else None,
             'personal_panic_url': self.personal_panic_url if include_sensitive else None,
             'personal_panic_hotkey': self.personal_panic_hotkey if include_sensitive else None,
-            'mute_until': self.mute_until.isoformat() if self.mute_until else None,
+            'mute_until': self.mute_until.strftime('%Y-%m-%dT%H:%M:%S') if self.mute_until else None,
         }
         return data
     

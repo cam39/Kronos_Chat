@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Embeds Complets</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .pass { border-color: green; background: #f0fff0; }
+        .fail { border-color: red; background: #fff0f0; }
+        .original { background: #f5f5f5; padding: 5px; font-family: monospace; }
+        .result { background: #e8f5e8; padding: 5px; font-family: monospace; }
+        
+        /* Styles embeds avec contour lime #CCFF00 */
+        .embed-youtube {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            max-width: 100%;
+            margin: 10px 0;
+            border: 2px solid #CCFF00;
+            border-radius: 8px;
+        }
+        .embed-youtube iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .embed-spotify {
+            margin: 10px 0;
+            border: 2px solid #CCFF00;
+            border-radius: 8px;
+            padding: 5px;
+            background: #000;
+        }
+        .embed-spotify iframe {
+            border: none;
+            border-radius: 4px;
+        }
+        .embed-vimeo {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            max-width: 100%;
+            margin: 10px 0;
+            border: 2px solid #CCFF00;
+            border-radius: 8px;
+        }
+        .embed-vimeo iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .embed-tiktok,
+        .embed-dailymotion,
+        .embed-twitch,
+        .embed-soundcloud {
+            margin: 10px 0;
+            border: 2px solid #CCFF00;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .embed-tiktok iframe,
+        .embed-dailymotion iframe,
+        .embed-twitch iframe,
+        .embed-soundcloud iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Test Embeds Complets avec Contour Lime</h1>
+    
+    <div class="test-section">
+        <h2>📋 Plateformes Supportées</h2>
+        <ul>
+            <li>✅ YouTube (avec paramètres)</li>
+            <li>✅ Spotify (avec paramètres)</li>
+            <li>✅ Vimeo</li>
+            <li>✅ TikTok</li>
+            <li>✅ Dailymotion</li>
+            <li>✅ Twitch</li>
+            <li>✅ SoundCloud</li>
+        </ul>
+        <p><strong>🎨 Contour : #CCFF00 (lime)</strong></p>
+    </div>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        // Fonctions complètes du système d'embeds
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        
+        function containsEmbeddableUrl(content) {
+            if (!content) return false;
+            
+            const embeddableDomains = [
+                'youtube.com', 'youtu.be', 'vimeo.com', 'spotify.com',
+                'tiktok.com', 'dailymotion.com', 'twitch.tv', 'soundcloud.com'
+            ];
+            
+            return embeddableDomains.some(domain => content.includes(domain));
+        }
+        
+        function processEmbeds(content) {
+            if (!content) return content;
+            
+            try {
+                // YouTube - regex corrigée pour gérer les paramètres
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:&[^&]*)*/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                content = content.replace(/(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-youtube"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // Spotify - regex corrigée pour gérer les paramètres et embed URLs
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?open\.spotify\.com\/(?:embed\/)?track\/([a-zA-Z0-9]+)(?:\?[^&]*)*/g, 
+                    '<div class="embed-spotify"><iframe src="https://open.spotify.com/embed/track/$1" width="300" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe></div>');
+                
+                // Vimeo - regex améliorée
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)(?:\?[^&]*)*/g, 
+                    '<div class="embed-vimeo"><iframe src="https://player.vimeo.com/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // TikTok
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@[^\/]+\/video\/(\d+)/g, 
+                    '<div class="embed-tiktok"><iframe src="https://www.tiktok.com/embed/v2/video/$1" width="325" height="560" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // Dailymotion
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?dailymotion\.com\/video\/([a-zA-Z0-9]+)/g, 
+                    '<div class="embed-dailymotion"><iframe src="https://www.dailymotion.com/embed/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // Twitch
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/g, 
+                    '<div class="embed-twitch"><iframe src="https://player.twitch.tv/?video=$1&parent=localhost&autoplay=false" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+                
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)/g, 
+                    '<div class="embed-twitch"><iframe src="https://player.twitch.tv/?channel=$1&parent=localhost&autoplay=false" width="640" height="360" frameborder="0" allowfullscreen></iframe></div>');
+                
+                // SoundCloud
+                content = content.replace(/(?:https?:\/\/)?(?:www\.)?soundcloud\.com\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/g, 
+                    '<div class="embed-soundcloud"><iframe src="https://w.soundcloud.com/player/?url=https://soundcloud.com/$1&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=true" width="100%" height="166" frameborder="0" allowfullscreen></iframe></div>');
+                
+                return content;
+            } catch (e) {
+                console.error('[KRONOS] Erreur processEmbeds:', e);
+                return content;
+            }
+        }
+        
+        function processRemainingUrls(content) {
+            if (!content) return content;
+            
+            // Éviter de transformer les URLs déjà dans des embeds
+            const embedPatterns = [
+                /<div class="embed-youtube">.*?<\/div>/g,
+                /<div class="embed-spotify">.*?<\/div>/g,
+                /<div class="embed-vimeo">.*?<\/div>/g,
+                /<div class="embed-tiktok">.*?<\/div>/g,
+                /<div class="embed-dailymotion">.*?<\/div>/g,
+                /<div class="embed-twitch">.*?<\/div>/g,
+                /<div class="embed-soundcloud">.*?<\/div>/g
+            ];
+            
+            let processedContent = content;
+            
+            // Marquer les embeds pour éviter la transformation
+            embedPatterns.forEach(pattern => {
+                processedContent = processedContent.replace(pattern, '%%EMBED_PLACEHOLDER%%');
+            });
+            
+            // Transformer les URLs restantes en liens
+            processedContent = processedContent.replace(/(https?:\/\/[^\s<]+)/g, 
+                '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+            
+            // Restaurer les embeds
+            embedPatterns.forEach((pattern, index) => {
+                const matches = content.match(pattern);
+                if (matches) {
+                    matches.forEach(match => {
+                        processedContent = processedContent.replace('%%EMBED_PLACEHOLDER%%', match);
+                    });
+                }
+            });
+            
+            return processedContent;
+        }
+        
+        function formatMessageContent(content) {
+            if (!content) return '';
+            
+            // Échapper le HTML pour éviter les XSS
+            let formatted = escapeHtml(content);
+            
+            // ÉTAPE 1: PROCESSUS DES EMBEDS EN PREMIER (AVANT transformation en liens)
+            if (containsEmbeddableUrl(formatted)) {
+                formatted = processEmbeds(formatted);
+            }
+            
+            // ÉTAPE 2: URLs simples (seulement celles non déjà transformées)
+            formatted = processRemainingUrls(formatted);
+            
+            // Sauts de ligne
+            formatted = formatted.replace(/\n/g, '<br>');
+            
+            return formatted;
+        }
+        
+        // Tests complets
+        const tests = [
+            {
+                name: "YouTube simple",
+                input: "Regarde cette vidéo : https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                expectedEmbed: "embed-youtube"
+            },
+            {
+                name: "YouTube avec paramètres",
+                input: "Super playlist : https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDC6FgEC3TFns&index=2",
+                expectedEmbed: "embed-youtube"
+            },
+            {
+                name: "YouTube youtu.be",
+                input: "Court lien : https://youtu.be/dQw4w9WgXcQ",
+                expectedEmbed: "embed-youtube"
+            },
+            {
+                name: "Spotify simple",
+                input: "Écoute ce titre : https://open.spotify.com/track/4cOdK2wGLETOMsVv4gKs45c",
+                expectedEmbed: "embed-spotify"
+            },
+            {
+                name: "Spotify avec paramètres",
+                input: "Spotify avec code : https://open.spotify.com/track/4cOdK2wGLETOMsVv4gKs45c?si=abc123",
+                expectedEmbed: "embed-spotify"
+            },
+            {
+                name: "Vimeo simple",
+                input: "Vidéo Vimeo : https://vimeo.com/123456789",
+                expectedEmbed: "embed-vimeo"
+            },
+            {
+                name: "TikTok video",
+                input: "Regarde ce TikTok : https://tiktok.com/@username/video/123456789",
+                expectedEmbed: "embed-tiktok"
+            },
+            {
+                name: "Dailymotion",
+                input: "Vidéo Dailymotion : https://dailymotion.com/video/abc123",
+                expectedEmbed: "embed-dailymotion"
+            },
+            {
+                name: "Twitch video",
+                input: "Regarde ce stream : https://twitch.tv/videos/123456",
+                expectedEmbed: "embed-twitch"
+            },
+            {
+                name: "Twitch channel",
+                input: "Chaîne Twitch : https://twitch.tv/username",
+                expectedEmbed: "embed-twitch"
+            },
+            {
+                name: "SoundCloud",
+                input: "Écoute ce son : https://soundcloud.com/artist/track-name",
+                expectedEmbed: "embed-soundcloud"
+            },
+            {
+                name: "URL normal (non embed)",
+                input: "Visitez ce site : https://www.example.com/page",
+                expectedEmbed: null
+            }
+        ];
+        
+        // Exécuter les tests
+        const results = tests.map(test => {
+            const result = formatMessageContent(test.input);
+            const hasEmbed = test.expectedEmbed ? result.includes(test.expectedEmbed) : !result.includes('embed-');
+            
+            return {
+                name: test.name,
+                input: test.input,
+                result: result,
+                passed: hasEmbed,
+                hasEmbed: hasEmbed,
+                expectedEmbed: test.expectedEmbed
+            };
+        });
+        
+        // Afficher les résultats
+        const resultsDiv = document.getElementById('test-results');
+        resultsDiv.innerHTML = '<h2>🧪 Résultats des Tests</h2>' + 
+            results.map(r => `
+                <div class="test-result ${r.passed ? 'pass' : 'fail'}">
+                    <h3>${r.name} ${r.passed ? '✅' : '❌'}</h3>
+                    <div class="original">Input: ${r.input}</div>
+                    <div class="result">Output: ${r.result}</div>
+                    <div>Embed: ${r.hasEmbed ? '✅' : '❌'} (attendu: ${r.expectedEmbed ? '✅' : '❌'})</div>
+                </div>
+            `).join('');
+        
+        // Résumé
+        const passedCount = results.filter(r => r.passed).length;
+        const totalCount = results.length;
+        
+        resultsDiv.innerHTML += `
+            <div class="test-section">
+                <h2>📊 Résumé</h2>
+                <p>${passedCount}/${totalCount} tests passés</p>
+                <p>${passedCount === totalCount ? '🎉 Tous les embeds fonctionnent avec contour lime !' : '❌ Certains embeds ont échoué'}</p>
+                <p><strong>🎨 Contour lime #CCFF00 appliqué à tous les embeds</strong></p>
+            </div>
+        `;
+        
+        console.log('Résultats des tests embeds complets:', results);
+    </script>
+</body>
+</html>
